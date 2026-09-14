@@ -112,36 +112,40 @@ async function computePrediction(asset: Asset, weather: any, stress: WeatherStre
     Weather_stress_index
   };
 
-  // call python service
+  // Call the Python FastAPI backend inference endpoint (port 8000).
+  // Uses X-PortSentinel-Client header required for operator-gated endpoints.
   try {
-    const response = await fetch("http://127.0.0.1:8000/predict", {
+    const response = await fetch("http://127.0.0.1:8000/api/model/predict", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      headers: {
+        "Content-Type": "application/json",
+        "X-PortSentinel-Client": "ui",
+      },
+      body: JSON.stringify({ features: payload }),
     });
-    
+
     if (!response.ok) {
-       const err = await response.json().catch(() => ({}));
-       throw new Error(`Python service error: ${response.status} - ${JSON.stringify(err)}`);
+      const err = await response.json().catch(() => ({}));
+      throw new Error(`FastAPI service error: ${response.status} - ${JSON.stringify(err)}`);
     }
 
     const data = await response.json();
-    
+
     return {
       assetId: asset.id,
       assetName: asset.name,
-      probability: data.riskProbability,
-      riskLevel: data.riskLevel,
-      model: data.model,
+      probability: data.class_1_probability,
+      riskLevel: data.threshold_band,
+      model: "CalibratedClassifierCV(XGBClassifier)",
       inputProvenance: "Simulated operational values; Real weather from Open-Meteo",
       weatherInformationUsed: {
-          windSpeedKmh: Wind_speed_kmh,
-          precipitationMm: Rainfall_mm,
-          wmoCode: WMO_Code,
-          stressIndex: Weather_stress_index,
-          isStorm: Storm_flag === 1.0
+        windSpeedKmh: Wind_speed_kmh,
+        precipitationMm: Rainfall_mm,
+        wmoCode: WMO_Code,
+        stressIndex: Weather_stress_index,
+        isStorm: Storm_flag === 1.0,
       },
-      calculatedAt: new Date().toISOString()
+      calculatedAt: new Date().toISOString(),
     };
   } catch (error: any) {
     throw new Error(`Service Unavailable: ${error.message}`);

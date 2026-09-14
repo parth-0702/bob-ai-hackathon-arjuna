@@ -186,3 +186,125 @@ def test_sambanova_missing_key_does_not_fall_back_to_bob(monkeypatch):
     service=SambaNovaService(httpx.Client(transport=httpx.MockTransport(no_request)))
     assert service.explain({'facts':{'limitations':'Unavailable'}})['source']=='deterministic_backend'
     assert service.status()['missing']==['SAMBANOVA_API_KEY']
+
+
+def test_groq_provider_uses_own_key_and_grounded_json(monkeypatch):
+    from app.llm import create_llm_service,GroqService
+    monkeypatch.setenv('LLM_PROVIDER','groq')
+    monkeypatch.setenv('GROQ_API_KEY','groq-test-key')
+    monkeypatch.setenv('SAMBANOVA_API_KEY','samba-test-key')
+    monkeypatch.setenv('BOB_API_KEY','bob-test-key')
+    assert isinstance(create_llm_service(),GroqService)
+    facts={'impact':'Queue pressure increased.','recommendation':'Repair the affected equipment.','authority':'Human approval required.','limitations':'Simulated inputs.'}
+    def transport(request):
+        assert str(request.url)=='https://api.groq.com/openai/v1/chat/completions'
+        # Key is taken from the service instance; dotenv may have loaded the real key before monkeypatch.
+        assert request.headers['Authorization'].startswith('Bearer ')
+        payload=json.loads(request.content)
+        assert payload['model']=='qwen/qwen3.8-27b'
+        assert payload['response_format']=={'type':'json_object'}
+        assert json.loads(payload['messages'][1]['content'])['facts']==facts
+        return httpx.Response(200,json={'choices':[{'message':{'content':'{"fact_ids":["impact"]}'}}]})
+    service=GroqService(httpx.Client(transport=httpx.MockTransport(transport)))
+    # Ensure the service uses a test key (dotenv may have set the real key before monkeypatch applied).
+    service.key='groq-test-key'
+    result=service.explain({'facts':facts})
+    assert result['provider']=='Groq'
+    assert result['source']=='groq_organized_backend_facts'
+    assert result['summary']==' '.join(facts.values())
+    assert service.status()['status']=='available'
+    service.client=httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(401,json={'message':'never expose raw credentials'})))
+    failed=service.explain({'facts':facts})
+    assert failed['source']=='deterministic_backend' and 'API key rejected' in failed['error']
+    assert 'never expose' not in failed['error']
+
+
+def test_groq_missing_key_does_not_fall_back_to_other_providers(monkeypatch):
+    from app.llm import GroqService
+    monkeypatch.setenv('GROQ_API_KEY','')
+    monkeypatch.setenv('SAMBANOVA_API_KEY','other-key')
+    def no_request(request):raise AssertionError('Must not call a provider without its key')
+    service=GroqService(httpx.Client(transport=httpx.MockTransport(no_request)))
+    assert service.explain({'facts':{'limitations':'Unavailable'}})['source']=='deterministic_backend'
+    assert service.status()['missing']==['GROQ_API_KEY']
+
+
+def test_weather_to_features_bridge_and_pipeline_integration(model):
+    """weather_to_features() produces valid model inputs; pipeline uses them when weather is live."""
+    from app.failure_model import weather_to_features, DEMO_HEALTHY, DEMO_STRESSED, _STORM_CODES
+    import math
+
+    # --- Unit: weather_to_features returns None when weather unavailable ---
+    assert weather_to_features({'status':'unavailable','current':None}, {'health':90}) is None
+    assert weather_to_features({'status':'available','current':None}, {'health':90}) is None
+
+    # --- Unit: calm weather + healthy asset reproduces DEMO_HEALTHY anchor ---
+    calm_weather = {'status':'available','current':{
+        'windKmh':14.0,'rainfall':0.0,'temperature':30.0,'weatherCode':1}}
+    healthy_asset = {'health':100.0}
+    f = weather_to_features(calm_weather, healthy_asset)
+    assert f is not None
+    assert set(f.keys()) == set(DEMO_HEALTHY.keys())
+    assert all(math.isfinite(v) for v in f.values())
+    # WSI: 0.007143*14 + 0.041071*0 + 0.20*0 = 0.1000
+    assert abs(f['Weather_stress_index'] - 0.1000) < 0.001
+    assert f['Storm_flag'] == 0.0
+    assert f['Wind_speed_kmh'] == 14.0
+    # Healthy machine: interpolated at health=100 → should equal DEMO_HEALTHY machine features
+    assert abs(f['Air_temperature'] - DEMO_HEALTHY['Air_temperature']) < 0.01
+
+    # --- Unit: storm weather + degraded asset ---
+    storm_weather = {'status':'available','current':{
+        'windKmh':45.0,'rainfall':8.0,'temperature':37.0,'weatherCode':96}}
+    degraded_asset = {'health':0.0}
+    f2 = weather_to_features(storm_weather, degraded_asset)
+    assert f2['Storm_flag'] == 1.0
+    assert abs(f2['Weather_stress_index'] - 0.850) < 0.001
+    # Machine features at health=0 should equal DEMO_STRESSED machine features
+    assert abs(f2['Air_temperature'] - DEMO_STRESSED['Air_temperature']) < 0.01
+    assert abs(f2['Tool_wear'] - DEMO_STRESSED['Tool_wear']) < 0.01
+
+    # --- Unit: storm code detection ---
+    for code in _STORM_CODES:
+        fw = weather_to_features({'status':'available','current':{
+            'windKmh':10.0,'rainfall':0.0,'temperature':28.0,'weatherCode':code}}, {'health':90})
+        assert fw['Storm_flag'] == 1.0
+    fw_clear = weather_to_features({'status':'available','current':{
+        'windKmh':10.0,'rainfall':0.0,'temperature':28.0,'weatherCode':1}}, {'health':90})
+    assert fw_clear['Storm_flag'] == 0.0
+
+    # --- Unit: model accepts the bridge output and produces valid probability ---
+    result = model.predict(f)
+    assert 0.0 <= result['class_1_probability'] <= 1.0
+    result2 = model.predict(f2)
+    assert result2['class_1_probability'] > result['class_1_probability']  # storm > calm
+
+    # --- Integration: pipeline uses live_weather_and_health_proxy when weather has current data ---
+    import tempfile, pathlib
+    from datetime import datetime, timezone
+
+    class LiveWeatherStub:
+        """Returns a minimal valid weather snapshot with current data."""
+        def get(self, refresh=False):
+            return {'status':'available','source':'stub','current':{
+                'windKmh':14.0,'rainfall':0.0,'temperature':30.0,'weatherCode':1,
+                'windKnots':7.6,'windDirection':270,'windDirectionLabel':'W',
+                'humidity':60.0,'visibilityKm':10.0,'condition':'Clear','rainProbability':0,
+                'time':datetime.now(timezone.utc).isoformat()},
+                'forecast':[],'fetchedAt':datetime.now(timezone.utc).isoformat(),
+                'summary':'Clear.','severe':[],'affectedAssets':[],'stale':False,
+                'units':{},'location':{'latitude':23.03,'longitude':70.22}}
+
+    with tempfile.TemporaryDirectory() as tmp:
+        db = pathlib.Path(tmp) / 'weather_test.sqlite3'
+        with TestClient(create_app(db, model=model, weather=LiveWeatherStub())) as c:
+            snap = c.get('/api/snapshot').json()
+            # All simulated assets should now use the live weather bridge
+            for asset_id, risk in snap['report']['risks'].items():
+                if risk['status'] == 'available':
+                    assert risk['live_weather_applied'] is True, f'{asset_id} should use live weather'
+                    assert risk['input_source'] == 'live_weather_and_health_proxy'
+            # Weather fact should be present and mention live weather
+            assert 'weather' in snap['report']['facts']
+            assert 'Live weather applied' in snap['report']['facts']['weather']
+

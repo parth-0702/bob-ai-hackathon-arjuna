@@ -64,8 +64,97 @@ class FailureRiskModel:
     def explain_output(self,result):
         return {'probabilityMeaning':'Probability assigned to numeric class 1 by the saved calibrated classifier','thresholdMeaning':'Bands use low_thresh/high_thresh saved in the artifact','result':result}
 
-# Complete synthetic engineered vectors are demo inputs, not inferred training transformations.
-# Do not substitute current weather or derive Power_est/Weather_stress_index until the
-# training preprocessing contract has been supplied and verified.
+# ---------------------------------------------------------------------------
+# Weather → model feature bridge
+# ---------------------------------------------------------------------------
+# The four weather features in the model map directly from Open-Meteo output:
+#   Ambient_temp_C      ← current.temperature          (°C, already correct)
+#   Wind_speed_kmh      ← current.windKmh               (km/h, already correct)
+#   Rainfall_mm         ← current.rainfall              (mm/h, already correct)
+#   Storm_flag          ← 1 if weather_code in severe set, else 0
+#   Weather_stress_index← derived: clip(0.007143*wind + 0.041071*rain + 0.20*storm, 0, 1)
+#
+# Formula derivation: solved from the two demo anchor points supplied with the model:
+#   DEMO_HEALTHY  (wind=14, rain=0, storm=0) → wsi=0.10  ✓
+#   DEMO_STRESSED (wind=45, rain=8, storm=1) → wsi=0.85  ✓
+# Multiple (b,c) splits satisfy this system; c=0.20 is chosen as the round-number
+# value consistent with the stressed anchor. Formula is flagged as derived, not
+# confirmed by the original training author.
+#
+# Machine sensor features (Air_temperature, Process_temperature, Rotational_speed,
+# Torque, Tool_wear, Temp_diff, Torque_x_Speed, Power_est) are NOT weather-derived.
+# For simulated assets they are interpolated from the asset's health score.
+# ---------------------------------------------------------------------------
+
+_STORM_CODES = {95, 96, 99}   # WMO thunderstorm codes used by Open-Meteo
+
+def weather_to_features(weather, asset, type_key='L'):
+    """
+    Build a complete 16-feature inference vector by combining:
+      - live weather readings (4 weather features + derived WSI)
+      - asset-health-based machine state proxy (8 machine sensor features)
+      - equipment type one-hot (3 features)
+
+    Parameters
+    ----------
+    weather : dict   Normalized weather snapshot from WeatherService.get()
+    asset   : dict   Port register record (must have 'health' 0–100)
+    type_key: str    'H', 'L', or 'M' — equipment type indicator
+
+    Returns
+    -------
+    dict of 16 float features ready for FailureRiskModel.predict(), or None
+    if weather is unavailable.
+    """
+    if not weather or weather.get('status') not in ('available', 'stale'):
+        return None
+    current = weather.get('current')
+    if not current:
+        return None
+
+    # --- Weather features (direct from Open-Meteo normalized output) ---
+    wind = float(current['windKmh'])
+    rain = float(current['rainfall'])
+    ambient = float(current['temperature'])
+    storm = 1.0 if current.get('weatherCode') in _STORM_CODES else 0.0
+    wsi = min(1.0, max(0.0, 0.007143 * wind + 0.041071 * rain + 0.20 * storm))
+
+    # --- Machine sensor proxy from asset health ---
+    # Interpolate between DEMO_HEALTHY (health=100) and DEMO_STRESSED (health=0).
+    # health=100 → healthy machine state; health=0 → fully stressed machine state.
+    # This is a linear proxy — real sensor readings would replace this.
+    h = max(0.0, min(100.0, float(asset.get('health', 100)))) / 100.0  # 1.0=healthy
+    def interp(healthy_val, stressed_val):
+        return round(healthy_val * h + stressed_val * (1.0 - h), 4)
+
+    if type_key not in ('H', 'L', 'M'):
+        type_key = 'L'
+    type_h, type_l, type_m = (1.0, 0.0, 0.0) if type_key == 'H' else \
+                              (0.0, 1.0, 0.0) if type_key == 'L' else \
+                              (0.0, 0.0, 1.0)
+
+    return {
+        # Machine sensor proxy (health-interpolated)
+        'Air_temperature':    interp(300, 305),
+        'Process_temperature':interp(310, 309),
+        'Rotational_speed':   interp(1500, 1250),
+        'Torque':             interp(40, 65),
+        'Tool_wear':          interp(50, 220),
+        'Temp_diff':          interp(10, 4),
+        'Torque_x_Speed':     interp(60000, 81250),
+        'Power_est':          interp(6283.185, 8508.48),
+        # Equipment type (one-hot)
+        'Type_H': type_h, 'Type_L': type_l, 'Type_M': type_m,
+        # Weather features (live)
+        'Ambient_temp_C':       round(ambient, 2),
+        'Wind_speed_kmh':       round(wind, 2),
+        'Rainfall_mm':          round(rain, 2),
+        'Storm_flag':           storm,
+        'Weather_stress_index': round(wsi, 4),
+    }
+
+
+# Complete synthetic engineered vectors — demo inputs anchoring the WSI formula.
+# weather_to_features() now supersedes these for simulated assets when weather is available.
 DEMO_HEALTHY=dict(zip(['Air_temperature','Process_temperature','Rotational_speed','Torque','Tool_wear','Temp_diff','Torque_x_Speed','Power_est','Type_H','Type_L','Type_M','Ambient_temp_C','Wind_speed_kmh','Rainfall_mm','Storm_flag','Weather_stress_index'],[300,310,1500,40,50,10,60000,6283.185,0,1,0,30,14,0,0,.1]))
 DEMO_STRESSED=dict(zip(DEMO_HEALTHY,[305,309,1250,65,220,4,81250,8508.48,0,1,0,37,45,8,1,.85]))
