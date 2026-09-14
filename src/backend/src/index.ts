@@ -16,6 +16,7 @@ import express from "express";
 import cors from "cors";
 import portRoutes from "./routes/portRoutes.js";
 import weatherRoutes from "./routes/weatherRoutes.js";
+import failureRiskRoutes from "./routes/failureRiskRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -42,6 +43,7 @@ app.use(
 
 app.use("/api", portRoutes);
 app.use("/api/weather", weatherRoutes);
+app.use("/api/failure-risk", failureRiskRoutes);
 
 // Root — developer convenience
 app.get("/", (_req, res) => {
