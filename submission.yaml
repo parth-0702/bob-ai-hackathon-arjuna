@@ -23,37 +23,37 @@ team:
       email: ""
 
 submission:
-  title: ""                            # REQUIRED — Project display name, e.g., "SmartOps Dashboard"
+  title: "PortSentinel Nexus"                            # REQUIRED — Project display name, e.g., "SmartOps Dashboard"
 
   problem_statement: >                 # REQUIRED — 1-3 sentences. What problem? Who has it?
-    Replace this text with a concise description of the real-world problem
-    your project addresses and who experiences it.
+    Port operators must understand how infrastructure degradation and weather
+    reduce handling capacity and propagate vessel delays and congestion at Kandla.
 
   solution_summary: >                  # REQUIRED — 1-3 sentences. What did you build?
-    Replace this text with a clear description of your solution
-    and how it addresses the problem above.
+    PortSentinel Nexus connects equipment inference, dependencies, deterministic
+    queue simulation and scenario comparison with persisted human-reviewed plans.
 
   key_features:                        # REQUIRED — List 3 to 5 specific features you implemented
-    - ""                               # e.g., "Real-time pipeline anomaly detection using watsonx.ai"
-    - ""
-    - ""
-    - ""                               # optional 4th
-    - ""                               # optional 5th
+    - "Interactive port view and backend-managed operational registers"
+    - "Supplied model inference with explicit feature and provenance boundaries"
+    - "Dependency-aware queue forecasts and ranked scenarios"
+    - "Transactional human approvals, plans and audit history"
+    - "Bob-only grounded explanation adapter; genuine API verification pending"
 
   tech_stack:
-    languages: []                      # REQUIRED — e.g., ["Python", "TypeScript"]
-    frameworks: []                     # e.g., ["FastAPI", "React"]
+    languages: ["Python", "TypeScript"]                      # REQUIRED — e.g., ["Python", "TypeScript"]
+    frameworks: ["FastAPI", "React", "Vite"]                     # e.g., ["FastAPI", "React"]
     ibm_technologies: []               # e.g., ["watsonx.ai", "IBM Bob", "IBM Cloud Functions"]
-    databases: []                      # e.g., ["PostgreSQL", "Redis"]
-    other: []                          # e.g., ["Docker", "GitHub Actions", "Slack API"]
+    databases: ["SQLite"]                      # e.g., ["PostgreSQL", "Redis"]
+    other: ["Three.js", "XGBoost", "scikit-learn", "Open-Meteo"]                          # e.g., ["Docker", "GitHub Actions", "Slack API"]
 
   what_we_are_most_proud_of: >         # Optional but recommended — guides judges to your best work
-    Replace with what aspect of the submission you consider strongest
-    and want judges to pay special attention to.
+    Infrastructure dependencies are connected to evaluated congestion responses
+    while preserving human authority and exact analysis snapshots.
 
   known_limitations: >                 # Optional but recommended — be honest about gaps
-    Replace with any known limitations, incomplete features,
-    or shortcuts taken due to time constraints.
+    Port operations are simulated. Model preprocessing/class semantics and real
+    Bob inference verification remain pending. No equipment commands are issued.
 
 # =============================================================================
 # ARTIFACT LOCATIONS

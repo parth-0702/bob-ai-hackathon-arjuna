@@ -1,66 +1,69 @@
-# PortSentinel Nexus — Setup Guide
+# PortSentinel Nexus setup
 
-## Current scope
-
-Frontend prototype with local simulated data. No backend, ML model, weather API, AIS feed, authentication or equipment control is connected.
+> Provider update: the user authorized SambaNova as an alternative to Bob. The active configuration is now SambaNova / Llama 3.3 70B. Earlier Bob-only descriptions below document the prior implementation. See [current SambaNova configuration](sambanova-integration.md). Live requests reached SambaNova, but inference is blocked by its payment-method requirement. No successful completion is claimed.
 
 ## Prerequisites
 
-- Node.js 22.12+ (validated using Node 24.19) and npm.
-- A modern browser. WebGL is required for the interactive 3D view; other modules work independently.
-- Internet access for the initial package installation. Typography requests Google Fonts, with local sans-serif fallbacks.
+Python 3.12, Node.js 22.12+ and npm. This workspace was tested with Python 3.12.14 and Node 24.19. A browser with WebGL enables the port scene; the other modules have no WebGL dependency. Initial installation and external weather require internet access.
 
-## Install and run
+## Backend — PowerShell from repository root
 
-From the repository root:
-
-```sh
-npm --prefix src/frontend ci
-npm --prefix src/frontend run dev
+```powershell
+python -m venv src/backend/.venv
+& src/backend/.venv/Scripts/python.exe -m pip install -r src/backend/requirements.txt
+Copy-Item src/.env.example src/backend/.env
+Set-Location src/backend
+& .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:5173. If that port is occupied, use the URL printed by Vite.
-No environment variables are required for this phase; `src/.env.example` documents this.
+The environment and dependencies are already installed in the working copy. Do not overwrite an existing configured `.env`. On macOS/Linux use `python3` and `.venv/bin/python`. SQLite initializes automatically under `src/backend/data/`; no external database is required. The exact supplied model is included under `src/backend/models/`.
 
-## Build and inspect
+## Frontend — second terminal, repository root
 
-```sh
-npm --prefix src/frontend run typecheck
-npm --prefix src/frontend run build
-npm --prefix src/frontend run preview
+```powershell
+npm.cmd --prefix src/frontend ci
+npm.cmd --prefix src/frontend run dev
 ```
 
-The production output is `src/frontend/dist/` (generated, not committed).
+Open http://127.0.0.1:5173. Vite forwards `/api` to the local backend on port 8000. API documentation: http://127.0.0.1:8000/docs. Both processes must remain running. This is a local prototype; no production deployment/authentication is configured.
 
-## Verify the main journey
+## Configuration
 
-1. Open the archival-photo landing page and enter Live Port View.
-2. Drag to orbit, scroll to zoom, and hover a quay or crane. Click a berth or use its accessible list button.
-3. Select the 24/48-hour outlook and investigate the risk.
-4. In Alerts, select a predefined response and open Approvals.
-5. Approve, modify with a comment, or reject with a reason. Confirm the decision and inspect the resulting simulated plan.
-6. Reload to verify browser persistence.
-7. Use Assets, Vessels, Berths and Cranes to add/edit records; try search and status filters.
-8. Settings provides an explicit confirmation to restore the initial demo scenario.
+All values live in `src/backend/.env` (or `src/.env`). None uses a public `VITE_` variable.
 
-## State checks
+| Variable | Purpose |
+|---|---|
+| `FAILURE_MODEL_PATH` | Optional absolute path; file must match the inspected artifact SHA-256. |
+| `PORT_DATABASE_PATH` | Optional absolute SQLite path. |
+| `FAILURE_POSITIVE_CLASS_CONFIRMED` | Default false. Set true only after the training owner confirms class 1 means failure. This does not validate feature formulas. |
+| `OPERATOR_TOKEN` | Optional token required for writes; enter the same value in Settings for the current browser session. Not a Bob key. |
+| `BOB_API_URL`, `BOB_API_KEY`, `BOB_API_MODEL` | Real Bob inference endpoint, credential and model identifier; currently unavailable. |
+| `BOB_API_PROTOCOL` | Default unconfigured. `chat-completions` activates the conditional adapter only after its contract is verified against Bob documentation. |
+| `BOB_API_AUTH_HEADER`, `BOB_API_AUTH_PREFIX` | Authentication format per the actual Bob contract. |
+| `BOB_API_TEAM_HEADER`, `BOB_API_TEAM_ID` | Optional team routing per the actual Bob contract. |
 
-- `/?state=loading`: three-second demo loading state.
-- `/?state=error`: simulated service failure; Retry attempts the same failed service until the query is removed.
-- `/?state=empty#Assets`: empty register.
-- `/?state=empty#Alerts`: no resources / no alerts state.
+Open-Meteo requires no key for this prototype. Weather coordinates are fixed to the Kandla reference location. Restart the backend after configuration changes.
 
-These are development/demo fixtures, not backend status endpoints.
+## Checks
+
+```powershell
+npm.cmd --prefix src/frontend run typecheck
+npm.cmd --prefix src/frontend run build
+npm.cmd --prefix src/frontend run format:check
+Set-Location src/backend
+& .venv/Scripts/python.exe -m pytest -q --basetemp=data/pytest-temp
+```
+
+## Demonstration
+
+1. Enter Live Port View, inspect a berth, then open Alerts.
+2. Compare backend-ranked responses and open Approvals.
+3. Approve, or select an evaluated alternative and modify with a comment, or reject with a reason. Confirm the decision.
+4. Inspect the persisted decision, accepted plan and audit history. Reload to verify persistence.
+5. Edit management records and inspect the recalculated report.
+6. Settings can advance six simulated hours, degrade equipment, restore equipment or reset seeded records. Reset preserves decision/audit history.
+7. Weather shows provider time, normalized units, forecasts and outage status. Ask Bob explicitly requests an explanation; missing configuration produces a labeled deterministic response.
 
 ## Troubleshooting
 
-| Symptom | Action |
-|---|---|
-| Blank/unavailable 3D view | Enable browser graphics acceleration; other modules remain available. |
-| Changes disappear on another device | Demo data is stored only in this browser; there is no shared database. |
-| Saved data cannot be read | Use Reset demo data on the error screen. |
-| Could not save | Allow browser storage or free local storage space. |
-| Installation cannot reach registry | Check network access to the npm registry. |
-| Local page cannot open | Keep the dev server running and use its printed port. |
-
-The IBM submission validator is unmodified. A successful frontend build does not mean the full hackathon submission is complete; team metadata, final demo recording, slides and submission documentation still require completion.
+Backend unavailable: start port 8000 and retry. Stale revision/analysis: refresh and review current inputs. WebGL unavailable: enable graphics acceleration or use the berth list. Weather unavailable: retry later; values are never replaced with fake live readings. Model unavailable: verify the supplied checksum and pinned dependencies. Do not use an unrelated pickle file. Bob unavailable: confirm the actual inference contract and credentials, then test a genuine request; mock transport tests do not prove IBM connectivity.

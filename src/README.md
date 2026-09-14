@@ -1,20 +1,7 @@
-# Source Code
+# Application source
 
-The PortSentinel Nexus frontend lives in `frontend/`.
+- `frontend/`: React, TypeScript, Vite, Three.js and lucide icons.
+- `backend/`: FastAPI, SQLite, deterministic operational engines and the supplied calibrated XGBoost model.
+- `.env.example`: backend-only configuration template.
 
-```text
-src/
-  .env.example
-  README.md
-  frontend/
-    package.json
-    package-lock.json
-    public/images/
-    src/components/
-    src/services/
-    src/App.tsx
-    src/styles.css
-```
-
-Run `npm --prefix src/frontend ci` and `npm --prefix src/frontend run dev` from the repository root.
-All application code stays inside `src/`. Backend implementation has not started.
+See [setup](../docs/setup-guide.md), [architecture](../docs/architecture.md) and [implementation report](../docs/implementation-report.md). Generated dependencies, databases and build output are ignored. Keep all application code under this directory to preserve the IBM submission structure.

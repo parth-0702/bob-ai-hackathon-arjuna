@@ -1,108 +1,147 @@
-import {
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpRight,
-  Clock,
-  CloudSun,
-  ShieldCheck,
-  Wind,
-} from "lucide-react";
-import { Badge, Forecast } from "./OperationalUI";
-import { solutions, type Snapshot } from "../services/portService";
+import { CloudSun, Wind, ArrowRight, RefreshCw } from "lucide-react";
+import { Badge } from "./OperationalUI";
+import type { Weather } from "../services/portService";
 export default function WeatherPanel({
+  weather,
   setSelected,
+  onRefresh,
 }: {
+  weather: Weather;
   setSelected: (id: string) => void;
+  onRefresh: () => void;
 }) {
+  const current = weather.current;
   return (
     <>
-      <article className="weather-banner">
-        <div>
-          <div className="eyebrow">KANDLA CREEK / DEMO FORECAST</div>
-          <h2>
-            A calm start.
-            <br />A changing afternoon.
-          </h2>
-          <p>
-            Conditions are stable in this scenario. Southwesterly winds
-            strengthen over the next 8 hours, with moderate rainfall later. Plan
-            inspections of exposed power equipment before the weather window
-            narrows.
-          </p>
-        </div>
-        <div className="weather-illustration">
-          <CloudSun size={96} strokeWidth={0.7} />
-          <b>
-            31°<span>Partly cloudy</span>
-          </b>
-        </div>
-      </article>
-      <div className="weather-metrics">
-        {[
-          ["Wind", "SW 14 kn"],
-          ["Rainfall", "0.2 mm"],
-          ["Visibility", "8 km"],
-          ["Humidity", "76%"],
-        ].map(([a, b]) => (
-          <article className="panel" key={a}>
-            <span>{a}</span>
-            <h2>{b}</h2>
-          </article>
-        ))}
+      <div className="section-heading">
+        <Badge tone={weather.status === "available" ? "green" : "amber"}>
+          {weather.status.toUpperCase()} · {weather.source}
+        </Badge>
+        <button className="btn" onClick={onRefresh}>
+          <RefreshCw size={14} />
+          Refresh weather
+        </button>
       </div>
-      <article className="panel">
-        <div className="section-heading">
-          <h2>Next 24 hours</h2>
-          <span>Illustrative forecast · not a weather advisory</span>
-        </div>
-        <div className="weather-hours">
-          {["Now", "+4h", "+8h", "+12h", "+18h", "+24h"].map((t, i) => (
-            <div key={t}>
-              <small>{t}</small>
-              {i < 2 ? <CloudSun /> : <Wind />}
-              <b>{[31, 33, 30, 28, 27, 29][i]}°</b>
-              <span>{[14, 18, 24, 27, 21, 16][i]} kn SW</span>
-              <small>{[0, 10, 55, 75, 40, 20][i]}% rain</small>
+      {!current ? (
+        <article className="panel">
+          <h2>Live weather unavailable</h2>
+          <p>{weather.error || weather.summary}</p>
+          <p className="fine-print">
+            No simulated readings have been substituted.
+          </p>
+        </article>
+      ) : (
+        <>
+          <article className="weather-banner">
+            <div>
+              <div className="eyebrow">
+                KANDLA CREEK / EXTERNAL WEATHER MODEL
+              </div>
+              <h2>
+                {current.condition}.<br />
+                Plan around the conditions.
+              </h2>
+              <p>{weather.summary}</p>
+              <small className="fine-print">
+                Provider time: {new Date(current.time).toLocaleString()} ·{" "}
+                {weather.stale
+                  ? "STALE SNAPSHOT"
+                  : "Open-Meteo modeled conditions"}
+              </small>
             </div>
+            <div className="weather-illustration">
+              <CloudSun size={96} strokeWidth={0.7} />
+              <b>
+                {Math.round(current.temperature)}°
+                <span>{current.condition}</span>
+              </b>
+            </div>
+          </article>
+          <div className="weather-metrics">
+            {[
+              [
+                "Wind",
+                `${current.windDirectionLabel || ""} ${current.windKnots} kn`,
+              ],
+              ["Rainfall", `${current.rainfall} mm`],
+              ["Visibility", `${current.visibilityKm} km`],
+              ["Humidity", `${current.humidity}%`],
+            ].map(([a, b]) => (
+              <article className="panel" key={a}>
+                <span>{a}</span>
+                <h2>{b}</h2>
+              </article>
+            ))}
+          </div>
+          <article className="panel">
+            <div className="section-heading">
+              <h2>Next 24 hours</h2>
+              <span>External forecast · hourly precipitation</span>
+            </div>
+            <div className="weather-hours">
+              {weather.forecast
+                .filter((_, i) => [0, 4, 8, 12, 18, 24].includes(i))
+                .map((p) => (
+                  <div key={p.time}>
+                    <small>
+                      {new Date(p.time).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </small>
+                    {p.rainfall > 0 ? <Wind /> : <CloudSun />}
+                    <b>{Math.round(p.temperature)}°</b>
+                    <span>{p.windKnots} kn</span>
+                    <small>{p.rainProbability ?? "—"}% rain</small>
+                  </div>
+                ))}
+            </div>
+          </article>
+        </>
+      )}
+      <div className="section-heading">
+        <h2>Operational exposure</h2>
+        <span>Weather → equipment → handling capacity</span>
+      </div>
+      {weather.severe.length ? (
+        <div className="panel">
+          {weather.severe.map((s) => (
+            <p key={s}>{s}</p>
           ))}
         </div>
-      </article>
-      <div className="section-heading">
-        <h2>Infrastructure to watch</h2>
-        <span>Weather → exposure → operational impact</span>
-      </div>
+      ) : (
+        <p className="fine-print">
+          {current
+            ? "No configured severe-weather threshold is crossed."
+            : "Exposure assessment is unavailable without weather data."}
+        </p>
+      )}
       <div className="solution-grid">
-        {[
-          [
-            "C07",
-            "Exposed crane operations",
-            "Increasing wind may limit safe lifting windows.",
-          ],
-          [
-            "P03",
-            "East quay power supply",
-            "Rain exposure may compound the existing equipment risk.",
-          ],
-          [
-            "R01",
-            "Reefer continuity",
-            "Check backup supply availability before the afternoon window.",
-          ],
-        ].map(([id, title, desc]) => (
+        {weather.affectedAssets.map((id) => (
           <button
             className="solution-card"
             key={id}
             onClick={() => setSelected(id)}
           >
             <Badge tone="amber">{id} · MONITOR</Badge>
-            <h3>{title}</h3>
-            <p>{desc}</p>
+            <h3>Review weather exposure</h3>
+            <p>
+              Check availability, dependencies and local equipment operating
+              limits.
+            </p>
             <footer>
               Inspect asset <ArrowRight size={16} />
             </footer>
           </button>
         ))}
       </div>
+      <p className="fine-print">
+        Weather data:{" "}
+        <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
+          Open-Meteo
+        </a>{" "}
+        · CC BY 4.0. These are weather-model values, not on-site port sensors.
+      </p>
     </>
   );
 }

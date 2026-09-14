@@ -5,6 +5,7 @@ export interface RecordItem {
   type: string;
   location: string;
   capacity: number;
+  capacityUnit?: string;
   status: string;
   health: number;
   workload: number;
@@ -12,256 +13,342 @@ export interface RecordItem {
   origin?: string;
   destination?: string;
   eta?: string;
+  plannedEta?: string;
   priority?: string;
   assignedCranes?: string;
   handlingHours?: number;
   operatingHours?: number;
   constraints?: string;
+  source?: string;
+  cargoUnits?: number;
+  handlingRate?: number;
+  maxDraft?: number;
+  draft?: number;
+  length?: number;
+  cargoType?: string;
+  supplyAsset?: string | null;
+  modelFeatures?: Record<string, number> | null;
+  position?: { latitude: number; longitude: number } | null;
+  speed?: number;
+  heading?: number;
+  imo?: string | null;
+  mmsi?: string | null;
+}
+export interface Point {
+  hour: number;
+  congestion: number;
+  queue: number;
+  utilization: number;
+}
+export interface Scenario {
+  id: string;
+  name: string;
+  detail: string;
+  tasks: string[];
+  resources: string;
+  assumption: string;
+  feasible: boolean;
+  score: number;
+  scoreBasis: string;
+  delay: number;
+  congestion: number;
+  risk: string;
+  affectedBerths: string[];
+  affectedVessels: string[];
+  metrics: {
+    totalDelayHours: number;
+    peakCongestion: number;
+    peakQueue: number;
+    resourceEffort: number;
+  };
+  series: Point[];
+}
+export interface Risk {
+  status: string;
+  class_1_probability?: number;
+  risk_probability: number | null;
+  risk_level?: string | null;
+  threshold_band?: string;
+  positive_class_confirmed?: boolean;
+  note?: string;
+  input_source?: string;
+}
+export interface Dependency {
+  asset_id: string;
+  crane_ids: string[];
+  berth_ids: string[];
+  vessel_ids: string[];
+  workload_exposure: number;
+  substitutes: string[];
+  arrivals_within_6h: number;
+  criticality: number;
+  basis: string;
+}
+export interface Alert {
+  id: string;
+  severity: string;
+  type: string;
+  berth_id: string | null;
+  asset_id: string | null;
+  vessel_ids: string[];
+  title: string;
+  problem: string;
+  impact: {
+    congestion?: number;
+    delayHours?: number;
+    queue?: number;
+    criticality?: number;
+  };
+  timeToImpactHours: number;
+  dependency?: Dependency | null;
+  risk?: Risk | null;
+  source: string;
+}
+export interface BerthForecast {
+  id: string;
+  name: string;
+  congestion: number;
+  utilization: number;
+  queue: number;
+  delay: number;
+  cranes: string[];
+  capacity: number;
+  capacityUnit: string;
+  workload: number;
+  schedule: {
+    vessel_id: string;
+    arrival: number;
+    start: number;
+    finish: number;
+    delay: number;
+    capacityUnavailable: boolean;
+    reason: string | null;
+  }[];
+}
+export interface Congestion {
+  method: string;
+  basis: string;
+  source: string;
+  weatherApplied: boolean;
+  delayIsLowerBound: boolean;
+  berths: BerthForecast[];
+  series: Point[];
+  totalDelayHours: number;
+  averageDelayHours: number;
+  peakCongestion: number;
+  currentCongestion: number;
+  waitingVessels: number;
+}
+export interface WeatherPoint {
+  time: string;
+  temperature: number;
+  humidity: number;
+  rainfall: number;
+  windKmh: number;
+  windKnots: number;
+  windDirection: number;
+  windDirectionLabel?: string;
+  visibilityKm: number;
+  condition: string;
+  rainProbability: number | null;
+}
+export interface Weather {
+  status: string;
+  source: string;
+  current: WeatherPoint | null;
+  forecast: WeatherPoint[];
+  fetchedAt: string | null;
+  summary: string;
+  severe: string[];
+  affectedAssets: string[];
+  error?: string;
+  stale: boolean;
+}
+export interface Explanation {
+  status: string;
+  provider: string;
+  source: string;
+  summary: string;
+  error?: string;
+  fact_ids?: string[];
 }
 export interface Decision {
   id: string;
+  report_id?: string;
   solution: string;
   comment: string;
   status: "Approved" | "Modified" | "Rejected";
   at: string;
+  actor?: string;
+  scenario?: Scenario;
+  plan?: {
+    tasks: string[];
+    operatorConditions: string;
+    status: string;
+    execution: string;
+    metrics: Scenario["metrics"];
+  } | null;
+}
+export interface Report {
+  id: string;
+  revision: number;
+  at: string;
+  simulationTime: string;
+  source: string;
+  risks: Record<string, Risk>;
+  dependencies: Dependency[];
+  congestion: Congestion;
+  alerts: Alert[];
+  primaryAlert: Alert | null;
+  scenarios: Scenario[];
+  recommended_id: string | null;
+  explanation: Explanation;
+  facts: Record<string, string>;
+  model: {
+    status: string;
+    positiveClassConfirmed: boolean;
+    compatibilityRecovery: boolean;
+    features: string[];
+    thresholds: { low: number; high: number };
+    preprocessing: string;
+    error: string | null;
+  };
 }
 export interface Snapshot {
   registers: Record<Register, RecordItem[]>;
   decisions: Decision[];
+  revision: number;
+  report: Report;
+  weather: Weather;
+  audit: { id: number; at: string; event: string; details: unknown }[];
+  services: {
+    model: Report["model"];
+    weather: string;
+    llm: {
+      provider: string;
+      model?: string;
+      status: string;
+      missing: string[];
+    };
+  };
+  simulationTime: string;
 }
-const row = (
-  id: string,
-  name: string,
-  type: string,
-  location: string,
-  capacity: number,
-  status = "Available",
-  health = 94,
-  workload = 52,
-): RecordItem => ({
-  id,
-  name,
-  type,
-  location,
-  capacity,
-  status,
-  health,
-  workload,
-  maintenance: "2026-09-21",
-  origin: "Mundra",
-  destination: "Kandla",
-  eta: "2026-09-14T14:00",
-  priority: "Normal",
-  assignedCranes:
-    location === "B03" ? "C07" : location === "B01" ? "C01" : "C04",
-  handlingHours: 8,
-  operatingHours: 1240,
-  constraints: "Subject to operator capacity and compatibility checks",
-});
-export const seed: Snapshot = {
-  registers: {
-    Assets: [
-      row(
-        "P03",
-        "East quay power unit",
-        "Power unit",
-        "B03",
-        2400,
-        "At risk",
-        61,
-        87,
-      ),
-      row("R01", "Reefer zone north", "Reefer infrastructure", "Yard A", 180),
-      row("CS02", "Cold storage east", "Cold storage", "Yard B", 600),
-      row("C07", "Harbour crane 07", "Crane", "B03", 100, "Restricted", 68, 89),
-    ],
-    Vessels: [
-      row("V01", "MV Sagar Pearl", "Bulk carrier", "B01", 18500, "Alongside"),
-      row(
-        "V02",
-        "MV Arabian Star",
-        "Container vessel",
-        "B02",
-        1240,
-        "Alongside",
-      ),
-      row(
-        "V03",
-        "MV Kutch Voyager",
-        "Bulk carrier",
-        "B03",
-        22000,
-        "Alongside",
-        90,
-        82,
-      ),
-      row(
-        "V04",
-        "MV Ocean Meridian",
-        "Container vessel",
-        "Anchorage",
-        980,
-        "Waiting",
-      ),
-      row("V05", "MV Narmada", "General cargo", "Inbound", 8600, "Inbound"),
-    ],
-    Berths: [
-      row(
-        "B01",
-        "West cargo quay",
-        "Dry bulk",
-        "West quay",
-        225,
-        "Occupied",
-        96,
-        61,
-      ),
-      row(
-        "B02",
-        "Container quay",
-        "Container",
-        "Central quay",
-        260,
-        "Occupied",
-        91,
-        74,
-      ),
-      row(
-        "B03",
-        "East cargo quay",
-        "Multipurpose",
-        "East quay",
-        240,
-        "At risk",
-        72,
-        91,
-      ),
-      row(
-        "B04",
-        "Outer cargo quay",
-        "Multipurpose",
-        "Outer quay",
-        280,
-        "Available",
-        97,
-        28,
-      ),
-    ],
-    Cranes: [
-      row("C01", "Harbour crane 01", "Mobile harbour", "B01", 100, "Working"),
-      row("C04", "Harbour crane 04", "Mobile harbour", "B02", 125, "Working"),
-      row(
-        "C07",
-        "Harbour crane 07",
-        "Mobile harbour",
-        "B03",
-        100,
-        "Restricted",
-        68,
-        89,
-      ),
-      row(
-        "C09",
-        "Harbour crane 09",
-        "Mobile harbour",
-        "B04",
-        125,
-        "Available",
-        97,
-        28,
-      ),
-    ],
-  },
-  decisions: [],
-};
-const KEY = "portsentinel-demo-v1";
-export interface PortService {
-  load(): Promise<Snapshot>;
-  save(snapshot: Snapshot): Promise<void>;
-}
-// Replace this adapter with authenticated backend calls. UI components never fetch or own fixtures.
-export const portService: PortService = {
-  async load() {
-    const params = new URLSearchParams(location.search);
-    await new Promise((r) =>
-      setTimeout(r, params.get("state") === "loading" ? 3000 : 350),
+let cached: Snapshot | null = null;
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-PortSentinel-Client": "ui",
+  };
+  const token = sessionStorage.getItem("portsentinel-operator-token");
+  if (token) headers["X-Operator-Token"] = token;
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      ...options,
+      headers: { ...headers, ...options.headers },
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch {
+    throw new Error(
+      "The backend is unavailable. Start the API server and retry.",
     );
-    if (params.get("state") === "error")
-      throw new Error("The operations service is unavailable. Please retry.");
-    if (params.get("state") === "empty")
-      return {
-        registers: { Assets: [], Vessels: [], Berths: [], Cranes: [] },
-        decisions: [],
-      };
-    const saved = localStorage.getItem(KEY);
-    if (saved) {
-      try {
-        const value = JSON.parse(saved);
-        if (!value.registers || !Array.isArray(value.decisions)) throw Error();
-        for (const key of ["Assets", "Vessels", "Berths", "Cranes"])
-          if (
-            !Array.isArray(value.registers[key]) ||
-            value.registers[key].some(
-              (r: RecordItem) =>
-                !r ||
-                typeof r.id !== "string" ||
-                typeof r.name !== "string" ||
-                typeof r.location !== "string" ||
-                typeof r.capacity !== "number" ||
-                typeof r.health !== "number" ||
-                typeof r.workload !== "number",
-            )
-          )
-            throw Error();
-        return value;
-      } catch {
-        throw new Error(
-          "Saved demo data could not be read. Reset demo data in Settings.",
-        );
-      }
-    }
-    return structuredClone(seed);
+  }
+  if (!response.ok) {
+    let message = "The operation could not be completed.";
+    try {
+      const error = await response.json();
+      message =
+        typeof error.detail === "string"
+          ? error.detail
+          : JSON.stringify(error.detail);
+    } catch {}
+    throw new Error(message);
+  }
+  return response.json();
+}
+export const portService = {
+  decide: (
+    report_id: string,
+    scenario_id: string,
+    status: Decision["status"],
+    comment: string,
+    request_id: string,
+  ) =>
+    request("/approvals", {
+      method: "POST",
+      body: JSON.stringify({
+        report_id,
+        scenario_id,
+        status,
+        comment,
+        request_id,
+      }),
+    }),
+  async load(): Promise<Snapshot> {
+    cached = await request<Snapshot>("/snapshot");
+    return cached;
   },
-  async save(snapshot) {
-    localStorage.setItem(KEY, JSON.stringify(snapshot));
+  async save(snapshot: Snapshot): Promise<void> {
+    if (!cached) throw new Error("Refresh the port state before saving.");
+    if (snapshot.decisions.length > cached.decisions.length) {
+      const decision = snapshot.decisions.at(-1)!;
+      await request("/approvals", {
+        method: "POST",
+        body: JSON.stringify({
+          report_id: cached.report.id,
+          scenario_id: decision.solution,
+          status: decision.status,
+          comment: decision.comment,
+          request_id: crypto.randomUUID(),
+        }),
+      });
+      return;
+    }
+    const changed: Array<{
+      domain: Register;
+      row: RecordItem;
+      exists: boolean;
+    }> = [];
+    for (const domain of [
+      "Cranes",
+      "Vessels",
+      "Berths",
+      "Assets",
+    ] as Register[])
+      for (const row of snapshot.registers[domain]) {
+        const previous = cached.registers[domain].find((r) => r.id === row.id);
+        if (JSON.stringify(previous) !== JSON.stringify(row))
+          changed.push({ domain, row, exists: !!previous });
+      }
+    if (!changed.length) return;
+    if (new Set(changed.map((c) => c.row.id)).size !== 1)
+      throw new Error("Save one record at a time.");
+    const change = changed[0];
+    await request(
+      `/${change.domain.toLowerCase()}${change.exists ? "/" + encodeURIComponent(change.row.id) : ""}`,
+      {
+        method: change.exists ? "PUT" : "POST",
+        headers: { "If-Match": String(cached.revision) },
+        body: JSON.stringify(change.row),
+      },
+    );
+  },
+  async simulate(event: "advance" | "degrade" | "repair" | "reset", hours = 6) {
+    return request<Snapshot>("/simulation", {
+      method: "POST",
+      body: JSON.stringify({ event, hours }),
+    });
+  },
+  async explain(id: string) {
+    return request<Explanation>("/explanations", {
+      method: "POST",
+      body: JSON.stringify({ report_id: id }),
+    });
+  },
+  async refreshWeather() {
+    return request<Weather>("/weather?refresh=true");
   },
 };
-export function resetDemo() {
-  localStorage.removeItem(KEY);
+export async function resetDemo() {
+  await portService.simulate("reset");
 }
-export const solutions = [
-  {
-    id: "S1",
-    name: "Reassign C09 to berth B03",
-    detail:
-      "Transfer the available harbour crane from B04; schedule a power inspection before the next handling window.",
-    delay: 1.8,
-    congestion: 31,
-    resources: "C09 · electrical inspection crew",
-    risk: "Low",
-    assumption:
-      "B04 remains free for the next 6 hours; crane travel route is clear.",
-  },
-  {
-    id: "S2",
-    name: "Shift the next vessel to B04",
-    detail:
-      "Retain current crane assignments and redirect Ocean Meridian to the outer quay.",
-    delay: 1.2,
-    congestion: 22,
-    resources: "B04 · pilot · two tugs",
-    risk: "Moderate",
-    assumption: "Vessel draft and cargo are compatible with B04.",
-  },
-  {
-    id: "S3",
-    name: "Resequence the arrival window",
-    detail:
-      "Hold Ocean Meridian at anchorage until the inspection is complete.",
-    delay: 0.4,
-    congestion: 12,
-    resources: "Vessel agent · scheduling team",
-    risk: "Moderate",
-    assumption: "The vessel operator accepts a revised arrival window.",
-  },
-];

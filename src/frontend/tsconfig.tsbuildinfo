@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/components/congestionpanel.tsx","./src/components/operationalui.tsx","./src/components/portscene.tsx","./src/components/weatherpanel.tsx","./src/services/portservice.ts"],"version":"5.8.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/congestionpanel.tsx","./src/components/connectedoperations.tsx","./src/components/operationalui.tsx","./src/components/portscene.tsx","./src/components/weatherpanel.tsx","./src/services/portservice.ts"],"version":"5.8.3"}

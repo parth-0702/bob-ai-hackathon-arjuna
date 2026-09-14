@@ -1,41 +1,9 @@
-# Solution Overview
+# Solution overview
 
-## What We Built
+PortSentinel Nexus is a port-resilience decision-support prototype. An immersive home and interactive illustrative quay lead to operational analysis, editable registers and human-reviewed responses.
 
-[Describe your solution in plain language. Avoid jargon — write as if explaining to a smart colleague unfamiliar with your tech stack.]
+The backend owns data and calculations. It loads the team's supplied classifier, normalizes external weather, traverses asset → crane → berth → vessel dependencies, simulates handling queues, and evaluates do-nothing, repair, crane reassignment, vessel shift and combined responses. Every feasible response is scored by the same deterministic formula. Bob is reserved for arranging grounded explanations; it cannot change numbers, rank scenarios or authorize actions.
 
-## How It Works
+Operators compare outcomes in Alerts and Approvals, record reasoning and confirm an outcome. The backend persists the exact report, selected scenario, actor, timestamp, accepted plan and audit event. Modified responses select an evaluated alternative; free-text conditions are preserved for human follow-through and do not become simulated commands. Rejection does not accept a new plan.
 
-[Explain the core mechanism step by step. A numbered list or simple flow works well here.]
-
-1. [Step 1: e.g., "User connects their GitHub repository via OAuth"]
-2. [Step 2: e.g., "The system ingests pipeline logs and feeds them to watsonx.ai"]
-3. [Step 3: e.g., "An anomaly score is computed and displayed on the dashboard"]
-4. [Step 4: e.g., "Alerts are sent to Slack when the score exceeds a threshold"]
-
-## Architecture Diagram
-
-> See [`architecture.md`](architecture.md) for the detailed diagram.
-
-[Optionally include a simple ASCII or Mermaid diagram here for quick reference.]
-
-```
-[User] → [Frontend: React] → [API: FastAPI] → [watsonx.ai] → [Dashboard]
-                                    ↓
-                             [PostgreSQL DB]
-```
-
-## Key Design Decisions
-
-| Decision | Rationale |
-|---|---|
-| [e.g., Used watsonx.ai for anomaly detection] | [e.g., Pre-trained models reduced time-to-value vs. building from scratch] |
-| [Decision 2] | [Rationale 2] |
-| [Decision 3] | [Rationale 3] |
-
-## IBM Technologies Used
-
-[Explain specifically HOW you used each IBM technology — not just that you used it.]
-
-- **[IBM Tech 1, e.g., watsonx.ai]:** [How it was used — e.g., "Used the `ibm/granite-13b-instruct-v2` model via the Python SDK to classify anomaly types from log text."]
-- **[IBM Tech 2]:** [How it was used]
+The UI retains the locked module hierarchy. There is no new chatbot, analytics module or autonomous execution flow. Technical limitations, external-source provenance and simulation labels remain visible.

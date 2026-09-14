@@ -31,14 +31,17 @@ import {
   X,
   Wind,
 } from "lucide-react";
+import {
+  AlertsPanel,
+  ApprovalsPanel,
+  BackendSettings,
+} from "./components/ConnectedOperations";
 import WeatherPanel from "./components/WeatherPanel";
 import CongestionPanel from "./components/CongestionPanel";
 import { Badge, Forecast } from "./components/OperationalUI";
 const PortScene = lazy(() => import("./components/PortScene"));
 import {
   portService,
-  resetDemo,
-  solutions,
   type Snapshot,
   type Register,
   type RecordItem,
@@ -81,7 +84,6 @@ const getPage = (): Page => {
   return [...modules, "Settings"].includes(name) ? (name as Page) : "Home";
 };
 export default function App() {
-  const [resetPrompt, setResetPrompt] = useState(false);
   const [page, setPage] = useState<Page>(getPage);
   const [data, setData] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
@@ -97,7 +99,6 @@ export default function App() {
   const [edit, setEdit] = useState<RecordItem | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [solution, setSolution] = useState("S1");
-  const [comment, setComment] = useState("");
   const [toast, setToast] = useState("");
   const [decision, setDecision] = useState<
     "Approved" | "Modified" | "Rejected" | null
@@ -179,21 +180,26 @@ export default function App() {
     setSaving(true);
     try {
       await portService.save(next);
-      setData(next);
+      await refresh();
       setToast(message);
       return true;
-    } catch {
-      setToast(
-        "Could not save. Browser storage may be full or disabled. Please retry.",
-      );
+    } catch (e) {
+      setToast((e as Error).message);
       return false;
     } finally {
       setSaving(false);
     }
   }
-  const current = solutions.find((s) => s.id === solution)!;
-  const latest = data?.decisions.at(-1);
-  const handled = !!latest;
+  const refresh = async () => {
+    setData(await portService.load());
+  };
+  useEffect(() => {
+    setSolution(
+      data?.report.recommended_id || data?.report.scenarios[0]?.id || "",
+    );
+  }, [data?.report.id]);
+  const latest = data?.decisions.find((d) => d.report_id === data.report.id);
+  const handled = !!latest || !data?.report.alerts.length;
   const emptyPort = Object.values(data?.registers || {}).every(
     (rows) => rows.length === 0,
   );
@@ -205,6 +211,19 @@ export default function App() {
         .flat()
         .find((r: RecordItem) => r.id === selected) as RecordItem | undefined)
     : undefined;
+  const berthDetail = data?.report.congestion.berths.find(
+    (b) =>
+      b.id === selected ||
+      b.id === item?.location ||
+      b.cranes.includes(selected || ""),
+  );
+  const dependencyDetail = data?.report.dependencies.find(
+    (d) =>
+      d.asset_id === selected ||
+      d.berth_ids.includes(selected || "") ||
+      d.crane_ids.includes(selected || "") ||
+      d.vessel_ids.includes(selected || ""),
+  );
   const scenePage = page === "Home" || page === "Live Port View";
   return (
     <div className="app-shell">
@@ -332,9 +351,28 @@ export default function App() {
           </div>
           <div className="top-right">
             <span className="local-time">
-              <Clock size={13} /> DEMO · 14 SEP 2026 · 09:41 IST
+              <Clock size={13} />{" "}
+              {data
+                ? new Date(data.simulationTime).toLocaleString("en-IN", {
+                    timeZone: "Asia/Kolkata",
+                  }) + " IST · SIM"
+                : "Connecting"}
             </span>
             <Badge tone="neutral">SIMULATED DATA</Badge>
+            <button
+              className="icon-button"
+              aria-label="Refresh port data"
+              onClick={async () => {
+                try {
+                  await refresh();
+                  setToast("Port snapshot refreshed.");
+                } catch (e) {
+                  setToast((e as Error).message);
+                }
+              }}
+            >
+              <RotateCcw size={17} />
+            </button>
             <button
               className="icon-button"
               onClick={() => go("Alerts")}
@@ -359,16 +397,6 @@ export default function App() {
             <p role="alert">{error}</p>
             <button className="btn primary" onClick={load}>
               Retry connection
-            </button>
-            <button
-              className="btn"
-              onClick={() => {
-                resetDemo();
-                history.replaceState(null, "", location.pathname);
-                load();
-              }}
-            >
-              Reset demo data
             </button>
           </div>
         ) : (
@@ -396,6 +424,7 @@ export default function App() {
                       >
                         <PortScene
                           records={data.registers}
+                          congestion={data.report.congestion}
                           onSelect={(id) => setSelected(id)}
                           active={page === "Live Port View"}
                           horizon={horizon}
@@ -438,15 +467,27 @@ export default function App() {
                   <div className="scene-weather">
                     <CloudSun size={26} />
                     <div>
-                      <b>31°</b>
-                      <span>Partly cloudy</span>
+                      <b>
+                        {data.weather.current
+                          ? `${Math.round(data.weather.current.temperature)}°`
+                          : "—"}
+                      </b>
+                      <span>
+                        {data.weather.current?.condition || "Unavailable"}
+                      </span>
                     </div>
                     <i />
                     <div>
                       <Wind size={15} />
-                      <span>SW 14 kn</span>
+                      <span>
+                        {data.weather.current
+                          ? `${data.weather.current.windKnots.toFixed(1)} kn`
+                          : "Weather unavailable"}
+                      </span>
                     </div>
-                    <small>DEMO WEATHER</small>
+                    <small>
+                      OPEN-METEO · {data.weather.status.toUpperCase()}
+                    </small>
                   </div>
                   <div className="compass">
                     <span>N</span>
@@ -512,7 +553,10 @@ export default function App() {
                         </span>
                         <div>
                           <small>ON THE OPERATIONAL HORIZON</small>
-                          <b>East quay requires attention</b>
+                          <b>
+                            {data.report.primaryAlert?.title ||
+                              "No operational alerts"}
+                          </b>
                           <span>
                             Explore the developing risk{" "}
                             <ArrowUpRight size={14} />
@@ -540,11 +584,9 @@ export default function App() {
                               <small>
                                 {b.status}{" "}
                                 <span>
-                                  {Math.min(
-                                    98,
-                                    b.workload +
-                                      (horizon ? (i === 2 ? 8 : 4) : 0),
-                                  )}
+                                  {data.report.congestion.berths.find(
+                                    (row) => row.id === b.id,
+                                  )?.utilization ?? 0}
                                   % load
                                 </span>
                               </small>
@@ -628,10 +670,10 @@ export default function App() {
                             status: "Available",
                             health: 100,
                             workload: 0,
-                            maintenance: "2026-09-21",
+                            maintenance: new Date().toISOString().slice(0, 10),
                             origin: "",
                             destination: "Kandla",
-                            eta: "2026-09-14T14:00",
+                            eta: new Date().toISOString().slice(0, 16),
                             priority: "Normal",
                             assignedCranes: "",
                             handlingHours: 8,
@@ -652,340 +694,22 @@ export default function App() {
                       </button>
                     )}
                   </div>
-                  {page === "Alerts" && emptyPort ? (
-                    <div className="panel empty-inline">
-                      <Bell />
-                      <h2>No operational alerts</h2>
-                      <p>Add port resources to begin a scenario.</p>
-                    </div>
-                  ) : (
-                    page === "Alerts" && (
-                      <>
-                        <div className="summary-row">
-                          <div>
-                            <span>Operational watch</span>
-                            <b>
-                              01 <small>developing risk</small>
-                            </b>
-                          </div>
-                          <div>
-                            <span>Time to impact</span>
-                            <b>
-                              ~6 <small>hours</small>
-                            </b>
-                          </div>
-                          <div>
-                            <span>Affected operations</span>
-                            <b>
-                              02 <small>vessels</small>
-                            </b>
-                          </div>
-                          <div>
-                            <span>Review status</span>
-                            <Badge tone={handled ? "green" : "amber"}>
-                              {handled
-                                ? latest.status
-                                : "Operator review required"}
-                            </Badge>
-                          </div>
-                        </div>
-                        <article className="alert-card">
-                          <div className="alert-top">
-                            <Badge tone="amber">HIGH PRIORITY</Badge>
-                            <span>PSN-042 · Infrastructure → congestion</span>
-                            <span>
-                              <Clock size={14} /> +6h to impact
-                            </span>
-                          </div>
-                          <h2>
-                            Power risk at the east quay could become a vessel
-                            queue.
-                          </h2>
-                          <p>
-                            Power unit P03 is showing elevated simulated risk.
-                            Crane C07 depends on that supply, reducing available
-                            handling capacity at berth B03.
-                          </p>
-                          <div className="dependency-chain">
-                            {[
-                              "P03 · Power supply",
-                              "C07 · Crane capacity",
-                              "B03 · Handling delay",
-                              "2 vessels affected",
-                            ].map((s, i) => (
-                              <div key={s}>
-                                <span>{s}</span>
-                                {i < 3 && <ArrowRight size={16} />}
-                              </div>
-                            ))}
-                          </div>
-                          <div className="impact-grid">
-                            <div>
-                              <small>PREDICTED CONGESTION</small>
-                              <b>
-                                82% <ArrowUpRight size={20} />
-                              </b>
-                              <span>+34 percentage points</span>
-                            </div>
-                            <div>
-                              <small>ADDITIONAL DELAY</small>
-                              <b>
-                                3.2 <em>hours</em>
-                              </b>
-                              <span>Kutch Voyager · Ocean Meridian</span>
-                            </div>
-                            <div>
-                              <small>CONFIDENCE & BASIS</small>
-                              <b>Scenario estimate</b>
-                              <span>Demo assumptions · no model connected</span>
-                            </div>
-                          </div>
-                        </article>
-                        <div className="section-heading">
-                          <h2>Available responses</h2>
-                          <span>Ranked from a predefined solution set</span>
-                        </div>
-                        <div className="solution-grid">
-                          {solutions.map((s, i) => (
-                            <button
-                              key={s.id}
-                              className={`solution-card ${solution === s.id ? "chosen" : ""}`}
-                              onClick={() => setSolution(s.id)}
-                            >
-                              <div>
-                                <Badge tone={i === 0 ? "green" : "neutral"}>
-                                  {i === 0
-                                    ? "RECOMMENDED"
-                                    : `ALTERNATIVE 0${i}`}
-                                </Badge>
-                                <span className="radio-check">
-                                  {solution === s.id && <Check size={13} />}
-                                </span>
-                              </div>
-                              <h3>{s.name}</h3>
-                              <p>{s.detail}</p>
-                              <footer>
-                                <span>
-                                  <ArrowDownRight size={15} /> {s.delay}h less
-                                  delay
-                                </span>
-                                <span>{s.risk} risk</span>
-                              </footer>
-                            </button>
-                          ))}
-                        </div>
-                        <div className="action-bar">
-                          <span>
-                            <ShieldCheck size={18} /> No operational action
-                            occurs without human approval.
-                          </span>
-                          <button
-                            className="btn primary"
-                            onClick={() => go("Approvals")}
-                          >
-                            Review selected response <ArrowRight size={16} />
-                          </button>
-                        </div>
-                      </>
-                    )
+                  {page === "Alerts" && (
+                    <AlertsPanel
+                      data={data}
+                      solution={solution}
+                      setSolution={setSolution}
+                      onReview={() => go("Approvals")}
+                    />
                   )}
-                  {page === "Approvals" && emptyPort ? (
-                    <div className="panel empty-inline">
-                      <ShieldCheck />
-                      <h2>No recommendations awaiting review</h2>
-                    </div>
-                  ) : (
-                    page === "Approvals" && (
-                      <div className="approval-grid">
-                        <article className="panel">
-                          <div className="section-heading">
-                            <Badge tone="amber">PSN-042 / HUMAN REVIEW</Badge>
-                            <ShieldCheck size={22} />
-                          </div>
-                          <h2>{current.name}</h2>
-                          <p>{current.detail}</p>
-                          <label className="field">
-                            Response to review
-                            <select
-                              value={solution}
-                              onChange={(e) => setSolution(e.target.value)}
-                            >
-                              {solutions.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                  {s.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <div className="impact-grid two">
-                            <div>
-                              <small>ESTIMATED DELAY REDUCTION</small>
-                              <b>
-                                {current.delay} <em>hours</em>
-                              </b>
-                            </div>
-                            <div>
-                              <small>CONGESTION REDUCTION</small>
-                              <b>
-                                {current.congestion} <em>points</em>
-                              </b>
-                            </div>
-                          </div>
-                          <dl className="detail-list">
-                            <div>
-                              <dt>Required resources</dt>
-                              <dd>{current.resources}</dd>
-                            </div>
-                            <div>
-                              <dt>Affected berths</dt>
-                              <dd>B03 · B04</dd>
-                            </div>
-                            <div>
-                              <dt>Affected vessels</dt>
-                              <dd>Kutch Voyager · Ocean Meridian</dd>
-                            </div>
-                            <div>
-                              <dt>Risk reduction</dt>
-                              <dd>
-                                Expected handling exposure reduced; unvalidated
-                                demo estimate
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>Assumptions</dt>
-                              <dd>{current.assumption}</dd>
-                            </div>
-                          </dl>
-                          <label className="field">
-                            Operator comment{" "}
-                            <span>Required when modifying or rejecting</span>
-                            <textarea
-                              value={comment}
-                              onChange={(e) => setComment(e.target.value)}
-                              placeholder="Record your reasoning, conditions or revised instructions…"
-                              rows={3}
-                            />
-                          </label>
-                          <div className="approval-actions">
-                            <button
-                              className="btn primary"
-                              disabled={handled}
-                              onClick={() => setDecision("Approved")}
-                            >
-                              <Check size={16} />
-                              Approve
-                            </button>
-                            <button
-                              className="btn"
-                              disabled={handled}
-                              onClick={() => {
-                                if (!comment.trim()) {
-                                  setToast(
-                                    "Add a comment describing the modification first.",
-                                  );
-                                  return;
-                                }
-                                setDecision("Modified");
-                              }}
-                            >
-                              Modify
-                            </button>
-                            <button
-                              className="btn danger"
-                              disabled={handled}
-                              onClick={() => {
-                                if (!comment.trim()) {
-                                  setToast(
-                                    "Add a reason for rejecting this response first.",
-                                  );
-                                  return;
-                                }
-                                setDecision("Rejected");
-                              }}
-                            >
-                              Reject
-                            </button>
-                          </div>
-                          {handled && (
-                            <p className="notice">
-                              A decision is already recorded for this demo
-                              alert. Reset the demo in Settings to review it
-                              again.
-                            </p>
-                          )}
-                        </article>
-                        <div>
-                          <article className="panel">
-                            <div className="eyebrow">
-                              EXPECTED OPERATIONAL IMPACT
-                            </div>
-                            <h3>Relieve pressure before it spreads.</h3>
-                            <Forecast solutionId={solution} />
-                            <p className="fine-print">
-                              Illustrative comparison for the selected response.
-                              Actual impacts require backend scenario
-                              evaluation.
-                            </p>
-                          </article>
-                          <article className="panel decision-record">
-                            <h3>Decision record</h3>
-                            {latest ? (
-                              <>
-                                <Badge
-                                  tone={
-                                    latest.status === "Rejected"
-                                      ? "red"
-                                      : "green"
-                                  }
-                                >
-                                  {latest.status}
-                                </Badge>
-                                <p>
-                                  {
-                                    solutions.find(
-                                      (s) => s.id === latest.solution,
-                                    )?.name
-                                  }
-                                </p>
-                                <p>
-                                  {latest.comment || "Approved as proposed."}
-                                </p>
-                                <small>
-                                  {new Date(latest.at).toLocaleString()}
-                                </small>
-                                <hr />
-                                <h4>
-                                  {latest.status === "Rejected"
-                                    ? "Operational plan unchanged"
-                                    : "Approved simulated plan"}
-                                </h4>
-                                <p>
-                                  {latest.status === "Rejected"
-                                    ? "No action scheduled."
-                                    : latest.status === "Modified"
-                                      ? latest.comment
-                                      : solutions.find(
-                                          (s) => s.id === latest.solution,
-                                        )?.detail}
-                                </p>
-                                <small>
-                                  Recorded locally. No equipment command was
-                                  issued.
-                                </small>
-                              </>
-                            ) : (
-                              <div className="empty-inline">
-                                <ShieldCheck size={28} />
-                                <p>Awaiting your review</p>
-                                <small>
-                                  Your decision and comments will appear here.
-                                </small>
-                              </div>
-                            )}
-                          </article>
-                        </div>
-                      </div>
-                    )
+                  {page === "Approvals" && (
+                    <ApprovalsPanel
+                      data={data}
+                      solution={solution}
+                      setSolution={setSolution}
+                      onSaved={refresh}
+                      onMessage={setToast}
+                    />
                   )}
                   {page === "Congestion" && (
                     <CongestionPanel
@@ -996,7 +720,18 @@ export default function App() {
                     />
                   )}
                   {page === "Weather" && (
-                    <WeatherPanel setSelected={setSelected} />
+                    <WeatherPanel
+                      weather={data.weather}
+                      setSelected={setSelected}
+                      onRefresh={async () => {
+                        try {
+                          await portService.refreshWeather();
+                          await refresh();
+                        } catch (e) {
+                          setToast((e as Error).message);
+                        }
+                      }}
+                    />
                   )}
                   {register && (
                     <>
@@ -1151,9 +886,9 @@ export default function App() {
                         )}
                       </div>
                       <p className="fine-print">
-                        Demo register · changes are saved in this browser.
-                        Capacity units depend on asset type; vessel capacity
-                        reflects its cargo units.{" "}
+                        Simulated register · changes are persisted by the
+                        backend. Capacity units depend on asset type; vessel
+                        capacity reflects its cargo units.{" "}
                         {register === "Berths" || register === "Cranes"
                           ? "Live operational status is available in Live Port View."
                           : ""}
@@ -1161,88 +896,11 @@ export default function App() {
                     </>
                   )}
                   {page === "Settings" && (
-                    <article className="panel settings-panel">
-                      <h2>Simulation workspace</h2>
-                      <p>
-                        This frontend uses a local demo service. No weather
-                        feed, prediction model, private port system or
-                        operational control is connected.
-                      </p>
-                      <dl className="detail-list">
-                        <div>
-                          <dt>Reference environment</dt>
-                          <dd>Deendayal / Kandla Port, Gujarat</dd>
-                        </div>
-                        <div>
-                          <dt>Scene geography</dt>
-                          <dd>
-                            Illustrative industrial quay, not surveyed berth
-                            geometry
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Operations & forecasts</dt>
-                          <dd>Simulated fixtures; no validated predictions</dd>
-                        </div>
-                        <div>
-                          <dt>Storage</dt>
-                          <dd>This browser, on this device</dd>
-                        </div>
-                        <div>
-                          <dt>Operational authority</dt>
-                          <dd>Human review only; no equipment commands</dd>
-                        </div>
-                      </dl>
-                      <button
-                        className="btn"
-                        onClick={() => {
-                          setPaused(!paused);
-                          setToast(
-                            paused
-                              ? "Vessel movement resumed"
-                              : "Vessel movement paused",
-                          );
-                        }}
-                      >
-                        {paused ? "Resume" : "Pause"} scene movement
-                      </button>
-                      <button
-                        className="btn danger"
-                        onClick={() => setResetPrompt(true)}
-                      >
-                        Reset demo data
-                      </button>
-                      {resetPrompt && (
-                        <div className="notice">
-                          <p>
-                            Restore the initial demo scenario? Locally edited
-                            records and review decisions will be removed.
-                          </p>
-                          <button
-                            className="btn danger"
-                            onClick={() => {
-                              resetDemo();
-                              history.replaceState(
-                                null,
-                                "",
-                                `${location.pathname}#Settings`,
-                              );
-                              setResetPrompt(false);
-                              load();
-                              setToast("Demo workspace reset");
-                            }}
-                          >
-                            Confirm demo reset
-                          </button>{" "}
-                          <button
-                            className="btn"
-                            onClick={() => setResetPrompt(false)}
-                          >
-                            Keep current data
-                          </button>
-                        </div>
-                      )}
-                    </article>
+                    <BackendSettings
+                      data={data}
+                      onSaved={refresh}
+                      onMessage={setToast}
+                    />
                   )}
                 </div>
               )}
@@ -1294,21 +952,23 @@ export default function App() {
               <div>
                 <dt>Health / utilization</dt>
                 <dd>
-                  {item?.health ?? 94}% / {item?.workload ?? 61}%
+                  {item?.health ?? "—"}% / {item?.workload ?? "—"}%
                 </dd>
               </div>
               <div>
                 <dt>Congestion / queue</dt>
                 <dd>
-                  {selected === "B03" ? "82% / 5 vessels" : "24% / 1 vessel"}
+                  {berthDetail
+                    ? `${berthDetail.congestion}% / ${berthDetail.queue} vessels`
+                    : "No berth forecast"}
                 </dd>
               </div>
               <div>
                 <dt>Expected delay</dt>
                 <dd>
-                  {selected === "B03" || selected === "C07"
-                    ? "+3.2 hours"
-                    : "+10 minutes"}
+                  {berthDetail
+                    ? `${berthDetail.delay} hours average`
+                    : "Not available"}
                 </dd>
               </div>
               <div>
@@ -1353,19 +1013,21 @@ export default function App() {
               <div>
                 <dt>Dependencies</dt>
                 <dd>
-                  {selected === "B03" ||
-                  selected === "C07" ||
-                  selected === "P03"
-                    ? "P03 → C07 → B03 → Kutch Voyager"
-                    : "Assigned quay resources"}
+                  {dependencyDetail
+                    ? [
+                        dependencyDetail.asset_id,
+                        ...dependencyDetail.crane_ids,
+                        ...dependencyDetail.berth_ids,
+                        ...dependencyDetail.vessel_ids,
+                      ].join(" → ")
+                    : "No dependency identified"}
                 </dd>
               </div>
               <div>
                 <dt>Available cranes</dt>
                 <dd>
-                  {selected === "B03"
-                    ? "C07 restricted · C09 alternative"
-                    : "Assigned crane available"}
+                  {dependencyDetail?.substitutes.join(" · ") ||
+                    "No eligible substitute identified"}
                 </dd>
               </div>
             </dl>
@@ -1383,7 +1045,10 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <Forecast horizon={horizon || 24} />
+            <Forecast
+              horizon={horizon || 24}
+              series={data.report.congestion.series}
+            />
             <p>
               Capacity loss can extend handling time and push waiting vessels
               into the next berth window.
@@ -1558,9 +1223,15 @@ export default function App() {
                     <input
                       required
                       type="datetime-local"
-                      value={edit.eta || "2026-09-14T14:00"}
+                      value={
+                        edit.eta
+                          ? new Date(new Date(edit.eta).getTime() + 330 * 60000)
+                              .toISOString()
+                              .slice(0, 16)
+                          : ""
+                      }
                       onChange={(e) =>
-                        setEdit({ ...edit, eta: e.target.value })
+                        setEdit({ ...edit, eta: e.target.value + ":00+05:30" })
                       }
                     />
                   </label>
@@ -1625,6 +1296,47 @@ export default function App() {
                   </label>
                 </>
               )}
+              {(register === "Vessels"
+                ? ["cargoUnits", "draft", "length"]
+                : register === "Cranes"
+                  ? ["handlingRate"]
+                  : register === "Berths"
+                    ? ["maxDraft"]
+                    : []
+              ).map((key) => (
+                <label className="field" key={key}>
+                  {
+                    {
+                      cargoUnits: "Cargo demand (units)",
+                      draft: "Vessel draft (m)",
+                      length: "Vessel length (m)",
+                      handlingRate: "Handling rate (cargo units/hour)",
+                      maxDraft: "Maximum draft (m)",
+                    }[key]
+                  }
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="any"
+                    required
+                    value={Number(
+                      edit[key as keyof RecordItem] ??
+                        (key === "handlingRate"
+                          ? 80
+                          : key === "cargoUnits"
+                            ? 600
+                            : key === "length"
+                              ? 180
+                              : key === "maxDraft"
+                                ? 13
+                                : 10),
+                    )}
+                    onChange={(e) =>
+                      setEdit({ ...edit, [key]: Number(e.target.value) })
+                    }
+                  />
+                </label>
+              ))}
               <label className="field">
                 Maintenance / review date
                 <input
@@ -1650,63 +1362,6 @@ export default function App() {
               </button>
             </footer>
           </form>
-        </div>
-      )}
-      {decision && data && (
-        <div className="modal-backdrop">
-          <section
-            className="modal compact"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="decision-title"
-          >
-            <ShieldCheck size={30} />
-            <h2 id="decision-title">
-              Confirm {decision.toLowerCase()} decision
-            </h2>
-            <p>{current.name}</p>
-            <p>{comment || "Approve this response as proposed."}</p>
-            <div className="notice">
-              This records a simulated operational plan. It does not control
-              real port equipment.
-            </div>
-            <footer>
-              <button
-                autoFocus
-                className="btn"
-                onClick={() => setDecision(null)}
-              >
-                Back to review
-              </button>
-              <button
-                className="btn primary"
-                disabled={saving}
-                onClick={async () => {
-                  if (
-                    await persist(
-                      {
-                        ...data,
-                        decisions: [
-                          ...data.decisions,
-                          {
-                            id: "PSN-042",
-                            solution,
-                            comment,
-                            status: decision,
-                            at: new Date().toISOString(),
-                          },
-                        ],
-                      },
-                      "Decision recorded in the simulated operational plan",
-                    )
-                  )
-                    setDecision(null);
-                }}
-              >
-                {saving ? "Recording…" : "Confirm decision"}
-              </button>
-            </footer>
-          </section>
         </div>
       )}
       {toast && (

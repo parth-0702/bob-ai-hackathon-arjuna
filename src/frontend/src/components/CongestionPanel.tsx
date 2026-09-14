@@ -1,14 +1,5 @@
-import {
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpRight,
-  Clock,
-  CloudSun,
-  ShieldCheck,
-  Wind,
-} from "lucide-react";
 import { Badge, Forecast } from "./OperationalUI";
-import { solutions, type Snapshot } from "../services/portService";
+import type { Snapshot } from "../services/portService";
 export default function CongestionPanel({
   data,
   horizon,
@@ -20,31 +11,39 @@ export default function CongestionPanel({
   setHorizon: (h: number) => void;
   setSelected: (id: string) => void;
 }) {
+  const c = data.report.congestion;
+  const recommended = data.report.scenarios.find(
+    (s) => s.id === data.report.recommended_id,
+  );
   return (
     <>
       <div className="summary-row">
         <div>
-          <span>Port congestion</span>
+          <span>Current congestion index</span>
           <b>
-            48<small>% current</small>
+            {c.currentCongestion}
+            <small>/ 100</small>
           </b>
         </div>
         <div>
-          <span>Peak in next 24h</span>
+          <span>Peak in 48h</span>
           <b>
-            82<small>% estimated</small>
+            {c.peakCongestion}
+            <small>/ 100</small>
           </b>
         </div>
         <div>
           <span>Vessels waiting</span>
           <b>
-            02<small>at anchorage</small>
+            {c.waitingVessels}
+            <small>modeled queue</small>
           </b>
         </div>
         <div>
           <span>Average delay</span>
           <b>
-            1.4<small>hours</small>
+            {c.averageDelayHours}
+            <small>hours</small>
           </b>
         </div>
       </div>
@@ -52,9 +51,7 @@ export default function CongestionPanel({
         <div className="section-heading">
           <div>
             <h2>Pressure over time</h2>
-            <p>
-              Baseline versus the proposed crane reassignment · demo scenario
-            </p>
+            <p>Backend queue simulation · baseline and recommended response</p>
           </div>
           <div className="segmented">
             {[6, 12, 24, 48].map((h) => (
@@ -68,27 +65,37 @@ export default function CongestionPanel({
             ))}
           </div>
         </div>
-        <Forecast horizon={horizon || 24} />
+        <Forecast
+          horizon={horizon || 24}
+          series={c.series}
+          response={recommended?.series}
+        />
+        <p className="fine-print">
+          {c.basis}{" "}
+          {c.delayIsLowerBound
+            ? "Unavailable capacity creates delays censored at the 48-hour horizon; displayed aggregate delay is a lower bound."
+            : ""}
+        </p>
       </article>
       <div className="section-heading">
         <h2>Berth-level outlook</h2>
-        <Badge tone="neutral">SIMULATED FORECAST</Badge>
+        <Badge tone="neutral">BACKEND SIMULATION</Badge>
       </div>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Berth</th>
-              <th>Congestion</th>
+              <th>Demand/capacity</th>
               <th>Utilization</th>
-              <th>Queue</th>
-              <th>Expected delay</th>
-              <th>Crane impact</th>
+              <th>Queue now</th>
+              <th>Average delay</th>
+              <th>Handling resources</th>
             </tr>
           </thead>
           <tbody>
-            {data.registers.Berths.map((b, i) => (
-              <tr key={b.id} onClick={() => setSelected(b.id)}>
+            {c.berths.map((b) => (
+              <tr key={b.id}>
                 <td>
                   <button
                     className="table-link"
@@ -99,30 +106,35 @@ export default function CongestionPanel({
                 </td>
                 <td>
                   <div className="meter">
-                    <i style={{ width: `${[24, 48, 82, 18][i % 4]}%` }} />
+                    <i style={{ width: `${b.congestion}%` }} />
                   </div>
-                  {[24, 48, 82, 18][i % 4]}%
+                  {b.congestion}%
                 </td>
-                <td>{b.workload}%</td>
-                <td>{[1, 2, 5, 0][i % 4]}</td>
-                <td>{["+10m", "+35m", "+3.2h", "On schedule"][i % 4]}</td>
+                <td>{b.utilization}%</td>
+                <td>{b.queue}</td>
+                <td>{b.delay}h</td>
                 <td>
-                  {i === 2 ? (
-                    <Badge tone="amber">C07 restricted</Badge>
-                  ) : (
-                    "Capacity available"
-                  )}
+                  {b.cranes.join(", ") || "No available cranes"}
+                  <small className="cell-note">
+                    {b.capacity} cargo units/h
+                  </small>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {!data.registers.Berths.length && (
-          <div className="empty-inline">
-            No berths available. Configure berths to see the outlook.
-          </div>
+        {!c.berths.length && (
+          <div className="empty-inline">No berths configured.</div>
         )}
       </div>
+      <p className="fine-print">
+        Weather derating:{" "}
+        {c.weatherApplied
+          ? "external current weather applied"
+          : "unavailable; neutral weather factor explicitly assumed"}
+        . Per-berth demand/capacity and the port queue index are different
+        metrics.
+      </p>
     </>
   );
 }

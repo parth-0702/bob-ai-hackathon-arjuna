@@ -1,5 +1,5 @@
 import type React from "react";
-import { solutions } from "../services/portService";
+import type { Point } from "../services/portService";
 export function Badge({
   children,
   tone = "green",
@@ -11,24 +11,22 @@ export function Badge({
 }
 export function Forecast({
   horizon = 24,
-  solutionId = "S1",
+  series = [],
+  response = [],
 }: {
   horizon?: number;
-  solutionId?: string;
+  series?: Point[];
+  response?: Point[];
 }) {
-  const baseline = [48, 52, 61, 70, 82, 76, 68, 62, 58];
-  const reduction =
-    solutions.find((s) => s.id === solutionId)?.congestion || 31;
-  const count = Math.max(2, Math.round(horizon / 6) + 1),
-    values = baseline.slice(0, count);
+  const values = series.filter((p) => p.hour <= horizon);
+  const alternatives = response.filter((p) => p.hour <= horizon);
+  if (!values.length)
+    return <p className="fine-print">No forecast available.</p>;
   const points = values
-    .map((v, i) => `${(i / (values.length - 1)) * 600},${155 - v * 1.45}`)
+    .map((p) => `${(p.hour / horizon) * 600},${155 - p.congestion * 1.45}`)
     .join(" ");
-  const response = values
-    .map(
-      (v, i) =>
-        `${(i / (values.length - 1)) * 600},${155 - (v - reduction * Math.min(1, i / 2)) * 1.45}`,
-    )
+  const other = alternatives
+    .map((p) => `${(p.hour / horizon) * 600},${155 - p.congestion * 1.45}`)
     .join(" ");
   return (
     <div className="forecast">
@@ -37,7 +35,7 @@ export function Forecast({
           viewBox="0 0 600 155"
           preserveAspectRatio="none"
           role="img"
-          aria-label={`Illustrative ${horizon}-hour congestion outlook; baseline peak ${Math.max(...values)} percent`}
+          aria-label={`Backend ${horizon}-hour congestion outlook; peak ${Math.max(...values.map((p) => p.congestion))} out of 100`}
         >
           {[25, 65, 105, 145].map((y) => (
             <line
@@ -58,14 +56,16 @@ export function Forecast({
             strokeWidth="3"
             strokeLinejoin="round"
           />
-          <polyline
-            points={response}
-            fill="none"
-            stroke="#31816c"
-            strokeWidth="2"
-            strokeDasharray="6 5"
-            strokeLinejoin="round"
-          />
+          {other && (
+            <polyline
+              points={other}
+              fill="none"
+              stroke="#31816c"
+              strokeWidth="2"
+              strokeDasharray="6 5"
+              strokeLinejoin="round"
+            />
+          )}
         </svg>
       </div>
       <div className="axis">
@@ -78,12 +78,14 @@ export function Forecast({
       <div className="chart-legend">
         <span>
           <i className="dot amber" />
-          Baseline congestion
+          Backend baseline
         </span>
-        <span>
-          <i className="dot" />
-          With proposed response
-        </span>
+        {other && (
+          <span>
+            <i className="dot" />
+            Selected response
+          </span>
+        )}
       </div>
     </div>
   );

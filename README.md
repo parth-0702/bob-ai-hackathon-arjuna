@@ -1,121 +1,38 @@
-# 🚀 [Your Project Title Here]
+# PortSentinel Nexus
 
-> ⚠️ **Replace everything in `[ ]` brackets with your actual content before submission.**
+> Provider update: the user authorized SambaNova as an alternative to Bob. The active configuration is now SambaNova / Llama 3.3 70B. Earlier Bob-only descriptions below document the prior implementation. See [current SambaNova configuration](docs/sambanova-integration.md). Live requests reached SambaNova, but inference is blocked by its payment-method requirement. No successful completion is claimed.
 
----
+**See the bottleneck before it becomes congestion.**
 
-## 👥 Team
+PortSentinel Nexus connects infrastructure health, operational dependencies and port congestion so operators can compare responses before accepting a plan. Deendayal/Kandla Port is the reference environment. The project combines the locked L1 congestion/port-operations and U1 equipment/power-risk problem statements.
 
-| Field | Value |
-|---|---|
-| **Team Name** | [Your Team Name] |
-| **Track** | [AI / DevOps / Sustainability / Open] |
-| **Team Lead** | [Name] — [email@ibm.com] |
-| **Members** | [Name 1], [Name 2], [Name 3] |
+The application includes the locked Home, Live Port View, Alerts, Approvals, Congestion, Weather, Assets, Vessels, Berths and Cranes experience. The homepage uses an attributed archival port photograph; the interactive quay is illustrative. Port records are simulated and stored by the backend. Open-Meteo provides separately labeled external weather.
 
----
+## Run locally
 
-## 🎯 Problem Statement
+See [exact setup commands](docs/setup-guide.md). Start the FastAPI server on port 8000 and the React/Vite frontend on port 5173. Python 3.12 and Node 22.12+ are required.
 
-> In 2–3 sentences: What problem does your project solve? Who experiences this problem?
+## Implemented
 
-[Describe the real-world problem your project addresses. Be specific about who the user is and what pain point they face.]
+- React/TypeScript interface with an interactive Three.js port scene and editable registers.
+- The supplied calibrated XGBoost artifact runs without retraining; original embedded model bytes recover an incompatible saved memory snapshot.
+- Deterministic dependency traversal, berth queues, scenario evaluation and ranking.
+- Server-side weather normalization, caching and explicit outage states.
+- SQLite registers, immutable analysis snapshots, transactional human decisions and audit history.
+- Bob-only explanation adapter with grounded output validation. Actual Bob inference remains unverified pending the team's API contract and credentials.
 
----
+## Important limitations
 
-## 💡 Solution
+The saved model's class-1 meaning and feature preprocessing are not supplied. Its actual output is shown as a class-1 probability; the operational simulator uses equipment health until semantics are confirmed. Live weather is not silently transformed into unknown model features. Simulation scores are engineering heuristics, not calibrated port predictions. Accepted plans issue no equipment commands.
 
-> In 2–3 sentences: What did you build? How does it solve the problem above?
+## Documentation
 
-[Describe your solution clearly. Explain the core mechanism — what makes it work.]
+- [Problem statement](docs/problem-statement.md)
+- [Solution overview](docs/solution-overview.md)
+- [Architecture and API reference](docs/architecture.md)
+- [Implementation report and validation](docs/implementation-report.md)
+- [Setup guide](docs/setup-guide.md)
 
----
+## Submission status
 
-## ✨ Key Features
-
-- **Feature 1:** [Brief description — e.g., "Real-time anomaly detection using watsonx.ai"]
-- **Feature 2:** [Brief description]
-- **Feature 3:** [Brief description]
-- **Feature 4:** [Optional]
-- **Feature 5:** [Optional]
-
----
-
-## 🛠️ Tech Stack
-
-| Category | Technologies |
-|---|---|
-| **Languages** | [e.g., Python, TypeScript] |
-| **Frameworks** | [e.g., FastAPI, React] |
-| **IBM Technologies** | [e.g., watsonx.ai, IBM Bob, IBM Cloud] |
-| **Databases** | [e.g., PostgreSQL, Redis] |
-| **Other** | [e.g., Docker, GitHub Actions] |
-
----
-
-## 📁 Repository Structure
-
-```
-├── src/                  # All source code
-├── docs/                 # Written documentation
-│   ├── problem-statement.md
-│   ├── solution-overview.md
-│   ├── architecture.md
-│   └── setup-guide.md
-├── demo/                 # Demo artifacts
-│   ├── screenshots/      # App screenshots
-│   └── demo-video-link.txt  # Link to demo video
-├── presentation/         # Slide deck
-└── submission.yaml       # Structured submission metadata
-```
-
----
-
-## ⚡ How to Run
-
-> **Copy these exact steps from your [`docs/setup-guide.md`](docs/setup-guide.md)**
-
-```bash
-# 1. Clone the repo
-git clone https://github.com/[your-repo].git
-cd [your-repo]
-
-# 2. Install dependencies
-[your install command here]
-
-# 3. Configure environment
-cp .env.example .env
-# Edit .env with your values
-
-# 4. Run the project
-[your run command here]
-```
-
----
-
-## 🖥️ Demo
-
-| Artifact | Link |
-|---|---|
-| 📹 Demo Video | [See demo/demo-video-link.txt](demo/demo-video-link.txt) |
-| 🌐 Live Demo | [See demo/live-demo-url.txt](demo/live-demo-url.txt) |
-| 🖼️ Screenshots | [See demo/screenshots/](demo/screenshots/) |
-| 📊 Presentation | [See presentation/slides.pdf](presentation/) |
-
----
-
-## ⚠️ Known Limitations
-
-> Be honest — judges appreciate transparency over overclaiming.
-
-- [Limitation 1: e.g., "Authentication is mocked — not production-ready"]
-- [Limitation 2: e.g., "Only tested on Chrome"]
-- [Limitation 3: e.g., "Feature X is scaffolded but not fully implemented"]
-
----
-
-## 🏅 What We're Most Proud Of
-
-[Tell the judges what part of your submission is strongest and worth paying close attention to.]
-
----
+All application code remains under `src/`; the IBM validation workflow is preserved. Team name, track, lead/contact details, final recording and presentation remain to be supplied. The complete submission validator is therefore not yet expected to pass. No Bob-assisted development history has been fabricated.

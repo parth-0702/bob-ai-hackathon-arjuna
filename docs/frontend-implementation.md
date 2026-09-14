@@ -1,3 +1,7 @@
+# Frontend implementation history
+
+The original frontend-only notes below are historical. Operational fixtures and browser persistence have since been replaced by the Python API and SQLite. See [current implementation report](implementation-report.md) and [setup guide](setup-guide.md). Legacy `?state=` test switches no longer apply.
+
 # Frontend Implementation and Integration Notes
 
 ## Product baseline

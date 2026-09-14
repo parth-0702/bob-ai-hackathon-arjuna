@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { RecordItem, Register } from "../services/portService";
+import type { RecordItem, Register, Congestion } from "../services/portService";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 interface Props {
   records: Record<Register, RecordItem[]>;
+  congestion: Congestion;
   onSelect: (id: string) => void;
   active: boolean;
   horizon: number;
@@ -12,6 +13,7 @@ interface Props {
 }
 export default function PortScene({
   records,
+  congestion,
   onSelect,
   active,
   horizon,
@@ -261,7 +263,7 @@ export default function PortScene({
         x,
         2.13,
         -14,
-        mat(i === 2 ? "#b79961" : "#adb39d"),
+        mat(berth.health < 75 ? "#b79961" : "#adb39d"),
       );
       slab.userData.id = berth.id;
       targets.push(slab);
@@ -270,7 +272,7 @@ export default function PortScene({
       const ring = new THREE.Mesh(
         ringG,
         new THREE.MeshBasicMaterial({
-          color: i === 2 ? "#e8ae47" : "#a2e6c3",
+          color: berth.health < 75 ? "#e8ae47" : "#a2e6c3",
           side: THREE.DoubleSide,
         }),
       );
@@ -322,11 +324,34 @@ export default function PortScene({
           );
       return group;
     }
-    ship(-81, 10, Math.PI / 2, 0);
-    ship(-27, 10, Math.PI / 2, 1);
-    ship(30, 10, Math.PI / 2, 2);
-    const moving = ship(68, 92, Math.PI * 0.2, 1);
-    ship(-111, 128, -0.3, 0);
+    const shipGroups = records.Vessels.filter(
+      (v) => v.status !== "Departed",
+    ).map((v, i) => {
+      const berthIndex = records.Berths.findIndex((b) => b.id === v.location);
+      const berthX =
+        -82 +
+        Math.max(0, berthIndex) *
+          (165 / Math.max(3, records.Berths.length - 1));
+      const forecast = congestion.berths
+        .flatMap((b) => b.schedule)
+        .find((s) => s.vessel_id === v.id);
+      const alongside = horizon
+        ? !!forecast && forecast.start <= horizon && forecast.finish > horizon
+        : v.status === "Alongside";
+      const group = ship(
+        alongside ? berthX : -110 + i * 38,
+        alongside ? 10 : 75 + i * 12,
+        alongside ? Math.PI / 2 : ((v.heading || 315) * Math.PI) / 180,
+        i,
+      );
+      group.userData.baseZ = group.position.z;
+      return group;
+    });
+    const moving = shipGroups.find(
+      (_, i) =>
+        records.Vessels.filter((v) => v.status !== "Departed")[i].status ===
+        "Inbound",
+    );
     // Batch repeated static cargo geometry into instanced draws. Keep pick targets
     // and moving vessels independent so interaction/animation retain their transforms.
     scene.updateMatrixWorld(true);
@@ -438,7 +463,8 @@ export default function PortScene({
       lastFrame = now;
       if (!pause.current && !reduced) {
         t += 0.005;
-        moving.position.z = 92 - Math.sin(t * 0.3) * 14;
+        if (moving)
+          moving.position.z = moving.userData.baseZ - Math.sin(t * 0.3) * 3;
         waves.position.x = Math.sin(t) * 0.5;
       }
       controls.update();
@@ -460,7 +486,7 @@ export default function PortScene({
       renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, [reset, records]);
+  }, [reset, records, horizon]);
   const tipRecord = tip
     ? Object.values(records)
         .flat()
@@ -498,23 +524,23 @@ export default function PortScene({
             {tip.id.startsWith("C") ? "Harbour crane" : "Cargo berth"}
           </b>
           <span>
-            {tip.id === "B03" || tip.id === "C07"
-              ? "Elevated risk · inspection required"
-              : "Operational · resources available"}
+            {tipRecord?.health !== undefined && tipRecord.health < 75
+              ? "Inspection required"
+              : "Configured resource status"}
           </span>
           <span>
-            Health {tipRecord?.health ?? 94}% · Workload{" "}
-            {tipRecord?.workload ?? 61}%
+            Health {tipRecord?.health ?? "—"}% · Workload{" "}
+            {tipRecord?.workload ?? "—"}%
           </span>
           <span>
             {tipRecord?.location} · {tipRecord?.status}
           </span>
           {tip.id.startsWith("B") ? (
             <span>
-              Queue {tip.id === "B03" ? 5 : 1} · Delay{" "}
-              {tip.id === "B03" ? "3.2h" : "10m"}
-              <br />
-              Crane {tip.id === "B03" ? "C07 restricted" : "available"}
+              Queue{" "}
+              {congestion.berths.find((b) => b.id === tip.id)?.queue ?? "—"} ·
+              Average delay{" "}
+              {congestion.berths.find((b) => b.id === tip.id)?.delay ?? "—"}h
             </span>
           ) : (
             <span>
