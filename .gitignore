@@ -97,6 +97,7 @@ logs/
 *.tfstate.backup
 
 # Local generated artifacts; submission documents belong under docs/.
+.deck-build/
 tmp/
 *.tsbuildinfo
 .env.*
