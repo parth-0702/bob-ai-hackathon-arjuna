@@ -7,11 +7,12 @@ Port infrastructure risk, congestion analysis and human-reviewed operational pla
 | Field | Value |
 |---|---|
 | Team Name | arjuna |
-| Track | Pending registered track confirmation |
+| Track | AI |
+| Selected Problem Statements | L1 — Container Congestion Predictor and Port Operations Optimiser; U1 — Power Outage Prediction and Grid Equipment Failure Advisor |
 | Team Lead | Oza Parth Bharatbhai — 24cs055@charusat.edu.in |
 | Members | Manav Lakhani, Dharm lakhani, Rudra Vaghela |
 
-Team details are recorded in [submission.yaml](submission.yaml); the registered track remains to be confirmed.
+Team details are recorded in [submission.yaml](submission.yaml). The L1 + U1 project is categorized under the AI track.
 
 ## Problem Statement
 
@@ -57,7 +58,7 @@ PortSentinel Nexus connects equipment condition and weather to operational depen
 │   └── reports/              # Supporting system report
 ├── demo/
 │   ├── screenshots/          # Final screenshots to be added
-│   ├── demo-video-link.txt   # Final recording URL to be added
+│   ├── demo-video-link.txt   # Submission recording URL
 │   └── live-demo-url.txt     # Local execution declared
 ├── presentation/             # Final slides.pdf or slides.pptx to be added
 ├── .gitignore
@@ -94,7 +95,7 @@ Open [the application](http://127.0.0.1:5173) or [API documentation](http://127.
 
 | Artifact | Location and status |
 |---|---|
-| Demo Video | [Recording link](demo/demo-video-link.txt) — pending final 3–5 minute recording |
+| Demo Video | [Watch the submission video](https://drive.google.com/file/d/1UAjfhpaErKTeIjRQJw7FA3debK6w56SL/view?usp=sharing) |
 | Live Demo | [Local execution](demo/live-demo-url.txt) — not deployed |
 | Screenshots | [Screenshot folder](demo/screenshots/) — add at least three running-app screenshots |
 | Presentation | [Presentation folder](presentation/) — add slides.pdf or slides.pptx |
@@ -108,7 +109,7 @@ Open [the application](http://127.0.0.1:5173) or [API documentation](http://127.
 - AI availability depends on the selected provider. Configuration alone does not prove successful inference.
 - Local operator-token protection is not production identity management. Accepted plans issue no equipment commands.
 - Confirm redistribution rights for the archival Home photograph before public distribution.
-- Registered track, video, screenshots and presentation remain pending; see the [submission checklist](docs/submission-checklist.md).
+- Screenshots and presentation remain pending; verify video access and see the [submission checklist](docs/submission-checklist.md).
 
 ## What We're Most Proud Of
 

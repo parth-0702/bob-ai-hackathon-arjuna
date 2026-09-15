@@ -1,16 +1,6 @@
-# =============================================================================
-# HACKATHON SUBMISSION METADATA
-# =============================================================================
-# Instructions:
-#   - Fill in ALL required fields (marked with # REQUIRED)
-#   - Optional fields can be left as empty strings ""
-#   - Do NOT rename this file — the evaluation pipeline reads it by name
-#   - Use double quotes around all string values
-# =============================================================================
-
 team:
   name: "arjuna"
-  track: ""                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
+  track: "AI"
   lead:
     name: "Oza Parth Bharatbhai"
     email: "24cs055@charusat.edu.in"
@@ -23,17 +13,20 @@ team:
       email: ""
 
 submission:
-  title: "PortSentinel Nexus"                            # REQUIRED — Project display name, e.g., "SmartOps Dashboard"
+  title: "PortSentinel Nexus"
 
-  problem_statement: >                 # REQUIRED — 1-3 sentences. What problem? Who has it?
-    Port operators must understand how infrastructure degradation and weather
-    reduce handling capacity and propagate vessel delays and congestion at Kandla.
+  problem_statement: >
+    Combining L1 Container Congestion Predictor and Port Operations Optimiser
+    with U1 Power Outage Prediction and Grid Equipment Failure Advisor,
+    this project helps port operators understand how infrastructure degradation
+    and weather reduce handling capacity and propagate vessel delays and
+    congestion at Deendayal Kandla Port.
 
-  solution_summary: >                  # REQUIRED — 1-3 sentences. What did you build?
+  solution_summary: >
     PortSentinel Nexus connects equipment inference, dependencies, deterministic
     queue simulation and scenario comparison with persisted human-reviewed plans.
 
-  key_features:                        # REQUIRED — List 3 to 5 specific features you implemented
+  key_features:
     - "Interactive port view and backend-managed operational registers"
     - "Supplied model inference with explicit feature and provenance boundaries"
     - "Dependency-aware queue forecasts and ranked scenarios"
@@ -41,29 +34,25 @@ submission:
     - "Point-wise grounded explanations via selectable Groq, SambaNova or Bob adapters with deterministic fallback"
 
   tech_stack:
-    languages: ["Python", "TypeScript"]                      # REQUIRED — e.g., ["Python", "TypeScript"]
-    frameworks: ["FastAPI", "React", "Vite"]                     # e.g., ["FastAPI", "React"]
-    ibm_technologies: []               # e.g., ["watsonx.ai", "IBM Bob", "IBM Cloud Functions"]
-    databases: ["SQLite"]                      # e.g., ["PostgreSQL", "Redis"]
-    other: ["Three.js", "XGBoost", "scikit-learn", "Open-Meteo"]                          # e.g., ["Docker", "GitHub Actions", "Slack API"]
+    languages: ["Python", "TypeScript"]
+    frameworks: ["FastAPI", "React", "Vite"]
+    ibm_technologies: []
+    databases: ["SQLite"]
+    other: ["Three.js", "XGBoost", "scikit-learn", "Open-Meteo"]
 
-  what_we_are_most_proud_of: >         # Optional but recommended — guides judges to your best work
+  what_we_are_most_proud_of: >
     Infrastructure dependencies are connected to evaluated congestion responses
     while preserving human authority and exact analysis snapshots.
 
-  known_limitations: >                 # Optional but recommended — be honest about gaps
+  known_limitations: >
     Port operations are simulated. Model preprocessing/class semantics and real
     Bob inference verification remain pending. No equipment commands are issued.
 
-# =============================================================================
-# ARTIFACT LOCATIONS
-# These paths are relative to the repo root. Only change if you moved files.
-# =============================================================================
 artifacts:
   source_code: "src/"
   setup_guide: "docs/setup-guide.md"
   architecture_doc: "docs/architecture.md"
-  demo_video: "demo/demo-video-link.txt"   # URL to hosted video (YouTube, Loom, Box)
-  live_demo: "demo/live-demo-url.txt"      # URL to deployed demo (optional)
+  demo_video: "demo/demo-video-link.txt"
+  live_demo: "demo/live-demo-url.txt"
   screenshots: "demo/screenshots/"
   presentation: "presentation/"
