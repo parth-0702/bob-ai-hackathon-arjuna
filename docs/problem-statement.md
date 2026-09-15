@@ -1,9 +1,23 @@
-# Problem statement
+# Problem Statement
 
-PortSentinel Nexus addresses the locked L1 Container Congestion Predictor & Port Operations Optimiser and U1 Power Outage Prediction & Grid Equipment Failure Advisor problem areas. Deendayal/Kandla Port, Gujarat, is the reference environment.
+## Background
 
-Port operators must coordinate vessel arrivals, berth allocation, crane capacity, infrastructure health and weather. Degraded power or handling equipment can reduce capacity, extend vessel handling, grow queues and propagate congestion. An equipment health score alone misses the operational consequence: workload, dependencies, substitutes and time pressure determine criticality.
+Port operations connect vessel arrivals, berth availability, crane handling capacity, power infrastructure and weather. PortSentinel Nexus uses Deendayal Kandla Port, Gujarat, as its reference setting and combines L1 Container Congestion Predictor and Port Operations Optimiser with U1 Power Outage Prediction and Grid Equipment Failure Advisor.
 
-The product connects infrastructure risk to congestion forecasts and evaluated responses. Its core flow is asset/infrastructure health → operational dependencies → congestion propagation → scenario comparison → recommendation → human approval → operational plan. The system recommends; a human approves, modifies or rejects. No real port equipment is controlled.
+## The Problem
 
-Private operational records are not available and are explicitly simulated. The project does not claim access to port telemetry, AIS, private terminal systems or a surveyed digital twin. Open technical choices may evolve without changing the finalized problem, modules, reference port or human authority.
+Degraded equipment or power supply reduces handling capacity and increases vessel queues. An isolated equipment health score does not explain which berth will lose capacity, which vessels will wait, or whether repair, crane reassignment or vessel shifting would improve the outcome.
+
+## Who is Affected
+
+Terminal operations coordinators allocating berths and cranes, maintenance personnel reviewing equipment exposure, and supervisors approving responses to expected delays.
+
+## Why It Matters
+
+The same equipment issue can have different consequences depending on cargo demand, arrival pressure and substitute availability. Connecting these factors helps operators prioritize attention and compare responses. The prototype reports simulated delay and congestion metrics; it does not claim measured savings at a real port.
+
+## Why Existing Solutions Fall Short
+
+The workflow addressed here is fragmented review of equipment status and vessel schedules. Reviewing either separately does not establish the downstream effect of degraded capacity. This is the project's problem framing, not a claim that every commercial port system lacks these capabilities.
+
+Private operational records are unavailable. Port operations are explicitly simulated; Open-Meteo weather is separately labeled. A human approves, modifies or rejects recommendations. No real equipment is controlled.

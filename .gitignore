@@ -95,3 +95,9 @@ logs/
 .terraform/
 *.tfstate
 *.tfstate.backup
+
+# Local generated artifacts; submission documents belong under docs/.
+tmp/
+*.tsbuildinfo
+.env.*
+!.env.example

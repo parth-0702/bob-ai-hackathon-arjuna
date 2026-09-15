@@ -9,17 +9,17 @@
 # =============================================================================
 
 team:
-  name: ""                             # REQUIRED — e.g., "Orion Squad"
+  name: "arjuna"
   track: ""                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
   lead:
-    name: ""                           # REQUIRED — e.g., "Alice Chen"
-    email: ""                          # REQUIRED — e.g., "alice.chen@ibm.com"
+    name: "Oza Parth Bharatbhai"
+    email: "24cs055@charusat.edu.in"
   members:
-    - name: ""                         # REQUIRED — Team member 1
+    - name: "Manav Lakhani"
       email: ""
-    - name: ""                         # Add more members by copying the two lines above
+    - name: "Dharm lakhani"
       email: ""
-    - name: ""
+    - name: "Rudra Vaghela"
       email: ""
 
 submission:
@@ -38,7 +38,7 @@ submission:
     - "Supplied model inference with explicit feature and provenance boundaries"
     - "Dependency-aware queue forecasts and ranked scenarios"
     - "Transactional human approvals, plans and audit history"
-    - "Bob-only grounded explanation adapter; genuine API verification pending"
+    - "Point-wise grounded explanations via selectable Groq, SambaNova or Bob adapters with deterministic fallback"
 
   tech_stack:
     languages: ["Python", "TypeScript"]                      # REQUIRED — e.g., ["Python", "TypeScript"]

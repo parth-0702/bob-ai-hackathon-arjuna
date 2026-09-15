@@ -1,71 +1,79 @@
-# Architecture and API reference
+# Architecture
 
-> Provider update: the user authorized SambaNova as an alternative to Bob. The active configuration is now SambaNova / Llama 3.3 70B. Earlier Bob-only descriptions below document the prior implementation. See [current SambaNova configuration](sambanova-integration.md). Live requests reached SambaNova, but inference is blocked by its payment-method requirement. No successful completion is claimed.
+## System Architecture
+
+The active application runs React/Vite on port 5173 and FastAPI on port 8000 with SQLite persistence. Vite proxies /api to FastAPI. The TypeScript backend under src/backend/src and standalone src/model-service are retained earlier implementations; the current setup does not start them.
+
+```mermaid
+flowchart TD
+    UI[Browser React and Three.js] -->|HTTP /api| API[FastAPI]
+    API --> DB[(SQLite)]
+    API --> P[Analysis pipeline]
+    W[Open-Meteo weather] --> P
+    M[Supplied calibrated XGBoost] --> P
+    P --> D[Dependency criticality]
+    D --> Q[Berth queue simulation]
+    Q --> S[Five evaluated responses]
+    S --> R[Stored analysis report]
+    R --> E[Selected AI fact ordering or fallback]
+    R --> H[Explicit human review]
+    H --> DB
+```
 
 ## Components
 
-```mermaid
-flowchart LR
- UI[React / Three.js] -->|HTTP /api| API[FastAPI]
- API --> DB[(SQLite)]
- API --> P[Analysis pipeline]
- W[Open-Meteo] --> P
- M[Supplied calibrated XGBoost] --> P
- P --> D[Dependencies and criticality]
- D --> Q[Berth queue simulator]
- Q --> S[Scenario evaluation and ranking]
- S --> R[Persisted report]
- R --> B[Bob-only explanation adapter]
- R --> H[Explicit human decision]
- H --> DB
-```
+| Component | Technology | Responsibility |
+|---|---|---|
+| Frontend | React, TypeScript, Vite, Three.js, SVG | Registers, illustrative scene, charts, point-wise explanations and decisions |
+| API | FastAPI, Pydantic, Uvicorn | Typed routes and orchestration |
+| Equipment inference | CalibratedClassifierCV over XGBClassifier | Numeric probabilities from the supplied artifact |
+| Operational engines | Python | Dependencies, queues, alerts and ranked responses |
+| Weather | HTTPX, Open-Meteo | Current/hourly normalization, cache and outage states |
+| AI explanation | Groq, SambaNova or optional Bob adapter | Select/order allowed fact IDs; render exact backend text |
+| Persistence | SQLite with WAL | Registers, revision, reports, decisions, audit and weather snapshots |
 
-SQLite suits a single-machine hackathon demonstration without an extra service. FastAPI provides typed validation and OpenAPI documentation while keeping Python model inference in-process. React/Vite and Three.js preserve the existing frontend. Engines are separate classes so validated forecasting or deployment services can later replace heuristics without changing the locked product flow.
+## Data Flow
 
-## Data ownership and consistency
+1. GET /api/snapshot reads registers, simulation time, revision and prior decisions consistently.
+2. WeatherService fetches current/hourly weather at 23.03 N, 70.22 E, validates ranges and converts units. It caches for ten minutes and backs off failures for one minute, returning stale or unavailable state.
+3. Explicit model features take precedence. Simulated assets otherwise combine weather with health-interpolated machine features. When weather is unavailable, complete demo vectors are used. Operator-entered assets without model inputs expose unavailable inference.
+4. The loader verifies the model checksum, recovers original embedded XGBoost bytes from an incompatible snapshot and retains saved sklearn calibration. Exactly sixteen features are required. Class-1 meaning and training preprocessing remain unconfirmed; the proxy weather-stress formula is derived from demo anchors.
+5. Dependencies traverse supply assets, cranes, berths and vessels. Criticality combines confirmed risk or health exposure, cargo demand, six-hour arrivals and substitutes. It is an index, not a probability.
+6. A deterministic single-server queue per berth uses arrival times, cargo demand, effective crane rates and vessel dimensions. Available current weather derates capacity; stale weather may enter the feature proxy but is not applied as current queue derating. Forecast samples cover 0–48h in six-hour steps; zero capacity causes lower-bound delays.
+7. Five templates evaluate do nothing, repair, crane reassignment, vessel shift, and repair plus rebalance. Score = total vessel-delay hours + 0.1 × peak congestion index + 2 × effort units. Feasible options rank first, then lowest score. Repair assumes completion before the window; effort is not money.
+8. Reports preserve analysis inputs and outputs. AI returns fact IDs, which the backend validates before assembling source text. Recommendation, authority and limitations are always included. Explanations can be added to stored reports without changing their calculation snapshot.
+9. Approval checks report/revision and stores scenario, operator, timestamp, conditions and audit evidence. Modification selects an evaluated alternative; rejection creates no accepted plan. Accepted plans are marked not executed.
+10. Register edits and simulation controls increment revisions. Crane deletion clears assignments and its mirrored Assets record; berth deletion rejects remaining dependencies. History is retained.
 
-`Store` persists registers, simulation time/revision, immutable analysis reports, decisions, audit events and provider weather snapshots. Register writes require `If-Match` revision. Approval uses a write transaction, current report/revision checks, a unique report constraint and idempotency key. The decision stores its scenario and model outputs in the audit; accepted plans are never dispatched to real systems. Reset replaces simulated records but retains historical reports/decisions/audit.
+### API reference
 
-The local operator header prevents accidental unauthenticated form posts; an optional shared operator token gates mutations. This is not production user identity, role-based access or a deployment security boundary. Both servers bind to loopback in the documented setup.
-
-## Model and weather boundaries
-
-`FailureRiskModel` verifies the original SHA-256 before restricted unpickling, recovers the original XGBoost model bytes from incompatible snapshots, and retains the saved sklearn calibration. Exact engineered inputs are validated. It never retrains or silently fills missing features. Numeric class-1 probability is available; failure semantics and preprocessing remain unconfirmed.
-
-`WeatherService` fetches Open-Meteo current/hourly modeled conditions at 23.03 N, 70.22 E, normalizes km/h to knots and metres to km, caches for ten minutes and backs off failed calls for one minute. Failures expose stale/unavailable state. Live weather has a separate clock from the simulated port. A current-wind heuristic derates queue capacity; future weather alerts use the forecast. No unverified live-weather transformation is passed into the failure model.
-
-## Operational calculations
-
-Dependencies traverse asset supply relationships, crane assignments and berth/vessel demand. Criticality weights confirmed risk (or health exposure while unconfirmed), cargo demand, six-hour arrivals and substitute availability. It is an index, not a probability.
-
-The congestion engine uses a deterministic single-server queue per berth, ordered by arrival and priority ties. Crane handling rates are reduced by health, supply health, restrictions and explicit current-weather factors. Vessel dimensions gate compatibility. It returns 0–48h samples, utilization, waiting counts and total/average delays. Handling completion may extend beyond the plotted window. No-capacity cases report a lower bound at 48 hours. The engine does not claim learned port accuracy; units, assumptions and resource limits are exposed.
-
-Five intervention templates share the same predictor. Score = total vessel-delay hours + 0.1 × peak congestion index + 2 × effort units. Lower is better among feasible candidates. Feasibility checks known assignments, available donors and vessel dimensions; cargo/lifting compatibility, pilot/tug availability and repair duration remain operator assumptions. Repair is optimistically assumed completed before the modeled window. Effort is not money. Scores do not represent a certified optimizer.
-
-## Bob responsibility
-
-Only `BobAPIService` can make an LLM request. It receives authoritative fact IDs/text and may return their order/selection. The backend validates allowed IDs, appends limitations and renders exact source text. Unknown facts or request failures trigger explicitly labeled deterministic explanations. Bob cannot calculate risk, invent outcomes, change rank or accept a plan. The conditional chat-completions transport is opt-in; real Bob endpoint/protocol/authentication remain to be verified from the team's contract. No alternate provider is configured.
-
-## Endpoints
-
-All paths begin `/api`. Interactive schemas are available at `/docs` on the backend.
+All paths below begin with /api. Interactive schemas are at /docs.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/health` | Model/Bob configuration and authority status |
-| GET | `/snapshot` | Consistent registers, analysis, decisions and services |
-| GET | `/port/live` | Simulated state, dependencies, risks and forecasts |
-| GET | `/assets`, `/vessels`, `/berths`, `/cranes` | Register records |
-| POST | Same register paths | Create; `If-Match` required |
-| PUT | `/{register}/{id}` | Update immutable ID; `If-Match` required |
-| GET | `/model/metadata` | Actual artifact interface/checksum |
-| POST | `/model/predict` | Actual prediction from all sixteen engineered features |
-| GET | `/weather?refresh=false` | Normalized external weather |
-| GET | `/congestion`, `/dependencies`, `/alerts`, `/scenarios` | Calculated operational outputs |
-| GET | `/recommendations/{report_id}` | Persisted reproducible report |
-| GET / POST | `/approvals` | Pending/history or explicit decision |
-| GET | `/operations`, `/audit` | Accepted plans and recent audit events |
-| POST | `/explanations` | Bob request or explicit fallback for a report |
-| POST | `/simulation` | Advance, degrade, repair or reset simulated state |
+| GET | /health, /snapshot, /port/live | Service and operational state |
+| GET, POST | /assets, /vessels, /berths, /cranes | Read/create records |
+| PUT | /{register}/{id} | Revision-protected update |
+| DELETE | /cranes/{id}, /berths/{id} | Revision-protected deletion |
+| GET | /model/metadata | Model contract |
+| POST | /model/predict | Inference from complete inputs |
+| GET | /weather, /congestion, /dependencies, /alerts, /scenarios | Analytical outputs |
+| GET | /recommendations/{report_id} | Persisted report |
+| GET, POST | /approvals | History/pending or decision |
+| GET | /operations, /audit | Accepted plans and recent audit |
+| POST | /explanations, /simulation | Explanation or advance/degrade/repair/reset |
 
-Mutation requests require `X-PortSentinel-Client: ui` and, when configured, `X-Operator-Token`. Decision JSON includes `report_id`, `scenario_id`, `status`, `comment`, `request_id`. Duplicate identical requests return the existing outcome; conflicting duplicates and stale inputs return 409.
+## Security Considerations
+
+- Provider keys stay in backend environment variables; no keys belong in frontend VITE variables.
+- Writes require X-PortSentinel-Client: ui and an optional X-Operator-Token. This is local demonstration protection, not production identity.
+- Register writes/deletes require If-Match. Decisions check current report/revision and unique request IDs.
+- SQLite transactions preserve changes and audit together. Deletes and reset preserve history.
+- Provider requests use HTTPS, disabled redirects, timeouts and isolated credentials. Only allowed fact IDs are accepted.
+- Checksum verification and restricted unpickling protect the supplied model-loading path. Do not substitute unrelated pickle files.
+
+## Scalability Notes
+
+The current deployment is local and single-instance. Shared SQLite state and process-local caches need redesign for horizontal scaling. Production use would need identity, permissions, validated model preprocessing, operational forecasting, telemetry integrations, backups and monitoring.
+
+Earlier notes in implementation-report.md and sambanova-integration.md describe historical validation. This document describes the current code; live provider success should be checked in Settings and the explanation badge.

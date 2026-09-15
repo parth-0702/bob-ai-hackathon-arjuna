@@ -1,69 +1,107 @@
-# PortSentinel Nexus setup
-
-> Provider update: the user authorized SambaNova as an alternative to Bob. The active configuration is now SambaNova / Llama 3.3 70B. Earlier Bob-only descriptions below document the prior implementation. See [current SambaNova configuration](sambanova-integration.md). Live requests reached SambaNova, but inference is blocked by its payment-method requirement. No successful completion is claimed.
+# Setup Guide
 
 ## Prerequisites
 
-Python 3.12, Node.js 22.12+ and npm. This workspace was tested with Python 3.12.14 and Node 24.19. A browser with WebGL enables the port scene; the other modules have no WebGL dependency. Initial installation and external weather require internet access.
+- Python 3.12; the local environment was tested with Python 3.12.14.
+- Node.js 22.12+ and npm.
+- Git and PowerShell for the commands below.
+- Internet for dependency installation and external weather or AI.
+- Browser with WebGL for the illustrative port scene.
 
-## Backend — PowerShell from repository root
+The app runs locally. AI credentials are optional; calculations, approvals and a labeled deterministic explanation work without them.
+
+## Environment Variables
+
+From the repository root, copy the template only if no local configuration exists:
 
 ```powershell
-python -m venv src/backend/.venv
-& src/backend/.venv/Scripts/python.exe -m pip install -r src/backend/requirements.txt
-Copy-Item src/.env.example src/backend/.env
-Set-Location src/backend
-& .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+if (-not (Test-Path src/backend/.env)) { Copy-Item src/.env.example src/backend/.env }
 ```
 
-The environment and dependencies are already installed in the working copy. Do not overwrite an existing configured `.env`. On macOS/Linux use `python3` and `.venv/bin/python`. SQLite initializes automatically under `src/backend/data/`; no external database is required. The exact supplied model is included under `src/backend/models/`.
+| Variable | Description | Required |
+|---|---|---|
+| PORT_DATABASE_PATH | Absolute SQLite path; default is src/backend/data/portsentinel.sqlite3 | No |
+| FAILURE_MODEL_PATH | Absolute model path; default is bundled model | No |
+| FAILURE_POSITIVE_CLASS_CONFIRMED | false until training owner confirms class 1 means failure; does not validate preprocessing | No |
+| OPERATOR_TOKEN | Shared local mutation token, entered in Settings | No |
+| LLM_PROVIDER | groq, sambanova or bob; template defaults to sambanova | No |
+| GROQ_API_KEY, GROQ_MODEL | Groq-only credentials and model; code default model qwen/qwen3.8-27b | For Groq explanations |
+| SAMBANOVA_API_KEY, SAMBANOVA_MODEL | SambaNova-only credentials and model; default Meta-Llama-3.3-70B-Instruct | For SambaNova explanations |
+| BOB_API_URL, BOB_API_KEY, BOB_API_MODEL | Actual verified IBM inference contract | For Bob explanations |
+| BOB_API_PROTOCOL | chat-completions only after contract verification | For Bob explanations |
+| BOB_API_AUTH_HEADER, BOB_API_AUTH_PREFIX | Bob authentication format | If contract differs |
+| BOB_API_TEAM_HEADER, BOB_API_TEAM_ID | Optional Bob team routing | No |
 
-## Frontend — second terminal, repository root
+Keys remain server-side. Restart the backend after changes. Selecting a provider does not verify account access or inference availability. Open-Meteo requires no key for this prototype.
+
+## Installation
 
 ```powershell
+git clone https://github.com/parth-0702/bob-ai-hackathon-arjuna.git
+cd bob-ai-hackathon-arjuna
+python -m venv src/backend/.venv
+& src/backend/.venv/Scripts/python.exe -m pip install -r src/backend/requirements.txt
 npm.cmd --prefix src/frontend ci
+if (-not (Test-Path src/backend/.env)) { Copy-Item src/.env.example src/backend/.env }
+```
+
+SQLite creates and seeds itself on backend startup. The supplied model is in src/backend/models; no external database or separate model service is needed.
+
+## Running the Application
+
+Backend, from repository root:
+
+```powershell
+& src/backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir src/backend --host 127.0.0.1 --port 8000
+```
+
+Frontend, from repository root in a second terminal:
+
+```powershell
 npm.cmd --prefix src/frontend run dev
 ```
 
-Open http://127.0.0.1:5173. Vite forwards `/api` to the local backend on port 8000. API documentation: http://127.0.0.1:8000/docs. Both processes must remain running. This is a local prototype; no production deployment/authentication is configured.
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173). API schemas are at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs). Keep both processes running.
 
-## Configuration
+For macOS/Linux, use python3 to create the environment, src/backend/.venv/bin/python as the Python executable, and npm instead of npm.cmd. Create .env only if absent.
 
-All values live in `src/backend/.env` (or `src/.env`). None uses a public `VITE_` variable.
+## Running Tests
 
-| Variable | Purpose |
-|---|---|
-| `FAILURE_MODEL_PATH` | Optional absolute path; file must match the inspected artifact SHA-256. |
-| `PORT_DATABASE_PATH` | Optional absolute SQLite path. |
-| `FAILURE_POSITIVE_CLASS_CONFIRMED` | Default false. Set true only after the training owner confirms class 1 means failure. This does not validate feature formulas. |
-| `OPERATOR_TOKEN` | Optional token required for writes; enter the same value in Settings for the current browser session. Not a Bob key. |
-| `BOB_API_URL`, `BOB_API_KEY`, `BOB_API_MODEL` | Real Bob inference endpoint, credential and model identifier; currently unavailable. |
-| `BOB_API_PROTOCOL` | Default unconfigured. `chat-completions` activates the conditional adapter only after its contract is verified against Bob documentation. |
-| `BOB_API_AUTH_HEADER`, `BOB_API_AUTH_PREFIX` | Authentication format per the actual Bob contract. |
-| `BOB_API_TEAM_HEADER`, `BOB_API_TEAM_ID` | Optional team routing per the actual Bob contract. |
-
-Open-Meteo requires no key for this prototype. Weather coordinates are fixed to the Kandla reference location. Restart the backend after configuration changes.
-
-## Checks
+From repository root:
 
 ```powershell
 npm.cmd --prefix src/frontend run typecheck
 npm.cmd --prefix src/frontend run build
 npm.cmd --prefix src/frontend run format:check
-Set-Location src/backend
-& .venv/Scripts/python.exe -m pytest -q --basetemp=data/pytest-temp
+Push-Location src/backend
+& .venv/Scripts/python.exe -m pytest tests/test_pipeline.py -q -p no:cacheprovider
+Pop-Location
 ```
 
-## Demonstration
+Targeting tests/test_pipeline.py avoids collecting generated database/test directories. The most recent functional validation passed 19 backend tests and the frontend build; the subsequent explanation presentation change passed TypeScript validation.
 
-1. Enter Live Port View, inspect a berth, then open Alerts.
-2. Compare backend-ranked responses and open Approvals.
-3. Approve, or select an evaluated alternative and modify with a comment, or reject with a reason. Confirm the decision.
-4. Inspect the persisted decision, accepted plan and audit history. Reload to verify persistence.
-5. Edit management records and inspect the recalculated report.
-6. Settings can advance six simulated hours, degrade equipment, restore equipment or reset seeded records. Reset preserves decision/audit history.
-7. Weather shows provider time, normalized units, forecasts and outage status. Ask Bob explicitly requests an explanation; missing configuration produces a labeled deterministic response.
+Submission validation runs separately via the preserved .github/workflows/validate.yml. See [submission-checklist.md](submission-checklist.md) for remaining required content.
+
+## Quick Demo (Optional)
+
+1. Inspect B03 in Live Port View.
+2. Inspect equipment records and external Weather.
+3. Use Settings to degrade east-quay assets. This also advances the simulation six hours.
+4. Compare Alerts, Congestion and ranked responses.
+5. Review a response in Approvals and request Explain with AI if configured.
+6. Approve, modify with an evaluated alternative, or reject. Inspect history and accepted plan.
+7. In crane/berth edit cards, Delete requires confirmation. Berths with dependencies must be cleared first.
+8. Reset restores seeded records while preserving report and decision history.
 
 ## Troubleshooting
 
-Backend unavailable: start port 8000 and retry. Stale revision/analysis: refresh and review current inputs. WebGL unavailable: enable graphics acceleration or use the berth list. Weather unavailable: retry later; values are never replaced with fake live readings. Model unavailable: verify the supplied checksum and pinned dependencies. Do not use an unrelated pickle file. Bob unavailable: confirm the actual inference contract and credentials, then test a genuine request; mock transport tests do not prove IBM connectivity.
+| Issue | Solution |
+|---|---|
+| Backend unavailable | Start FastAPI on port 8000; retry the frontend |
+| Stale revision or recommendation | Refresh and review the new analysis |
+| Berth deletion blocked | Reassign listed vessels, cranes or assets |
+| Weather unavailable | Retry later; the service exposes stale/unavailable status |
+| AI fallback | Check the selected provider, key, model and account access; never enter an AI key into the operator-token field |
+| Model unavailable | Verify included artifact and pinned dependencies; do not replace the pickle |
+| Missing 3D view | Enable WebGL/hardware acceleration; use register and berth lists |
+| Test directory permissions | Use a writable temporary location; tests do not need the live database |
