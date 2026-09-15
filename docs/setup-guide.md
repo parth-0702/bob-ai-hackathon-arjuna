@@ -24,13 +24,8 @@ if (-not (Test-Path src/backend/.env)) { Copy-Item src/.env.example src/backend/
 | FAILURE_MODEL_PATH | Absolute model path; default is bundled model | No |
 | FAILURE_POSITIVE_CLASS_CONFIRMED | false until training owner confirms class 1 means failure; does not validate preprocessing | No |
 | OPERATOR_TOKEN | Shared local mutation token, entered in Settings | No |
-| LLM_PROVIDER | groq, sambanova or bob; template defaults to sambanova | No |
+| LLM_PROVIDER | groq; the supplied environment files select Groq | No |
 | GROQ_API_KEY, GROQ_MODEL | Groq-only credentials and model; code default model qwen/qwen3.8-27b | For Groq explanations |
-| SAMBANOVA_API_KEY, SAMBANOVA_MODEL | SambaNova-only credentials and model; default Meta-Llama-3.3-70B-Instruct | For SambaNova explanations |
-| BOB_API_URL, BOB_API_KEY, BOB_API_MODEL | Actual verified IBM inference contract | For Bob explanations |
-| BOB_API_PROTOCOL | chat-completions only after contract verification | For Bob explanations |
-| BOB_API_AUTH_HEADER, BOB_API_AUTH_PREFIX | Bob authentication format | If contract differs |
-| BOB_API_TEAM_HEADER, BOB_API_TEAM_ID | Optional Bob team routing | No |
 
 Keys remain server-side. Restart the backend after changes. Selecting a provider does not verify account access or inference availability. Open-Meteo requires no key for this prototype.
 
