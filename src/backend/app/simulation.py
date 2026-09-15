@@ -34,6 +34,7 @@ def advance_port(records, clock, hours, event):
         for domain in ('Assets','Cranes'):
             for r in out[domain]:
                 if r['id'] in ('P03','C07'):
+                    if r['status']=='Maintenance':continue
                     r['health']=42 if event=='degrade' else 96
                     r['status']='Restricted' if event=='degrade' else 'Available'
     return out,now.isoformat()

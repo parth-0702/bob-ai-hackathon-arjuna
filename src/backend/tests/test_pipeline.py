@@ -23,6 +23,35 @@ def client(tmp_path,model):
 
 HEADERS={'X-PortSentinel-Client':'ui'}
 
+def test_crane_maintenance_blocks_assignments_and_capacity(client):
+    before=client.get('/api/snapshot').json()
+    crane=next(c for c in before['registers']['Cranes'] if c['id']=='C07')
+    vessel=deepcopy(before['registers']['Vessels'][0])
+    vessel['assignedCranes']='C07, C09'
+    def save(domain,row,revision):
+        return client.put('/api/'+domain+'/'+row['id'],json=row,headers={**HEADERS,'If-Match':str(revision)})
+    assert save('vessels',vessel,before['revision']).status_code==200
+    crane['status']='Maintenance'
+    assert save('cranes',crane,before['revision']+1).status_code==200
+    after=client.get('/api/snapshot').json()
+    assert next(v for v in after['registers']['Vessels'] if v['id']==vessel['id'])['assignedCranes']=='C09'
+    assert next(a for a in after['registers']['Assets'] if a['id']=='C07')['status']=='Maintenance'
+    assert next(b for b in after['report']['congestion']['berths'] if b['id']=='B03')['capacity']==0
+    assert save('vessels',vessel,after['revision']).status_code==409
+    assert client.get('/api/snapshot').json()['revision']==after['revision']
+    from app.simulation import advance_port
+    for event in ('advance','degrade','repair'):
+        records,_=advance_port(after['registers'],after['simulationTime'],6,event)
+        assert next(c for c in records['Cranes'] if c['id']=='C07')['status']=='Maintenance'
+    from app.store import Store
+    persisted,_,_,_=Store(client.app.state.store.path).state()
+    assert next(c for c in persisted['Cranes'] if c['id']=='C07')['status']=='Maintenance'
+    crane['status']='Available'
+    assert save('cranes',crane,after['revision']).status_code==200
+    restored=client.get('/api/snapshot').json()
+    assert next(v for v in restored['registers']['Vessels'] if v['id']==vessel['id'])['assignedCranes']=='C09'
+    assert save('vessels',vessel,restored['revision']).status_code==200
+
 def test_delete_crane_clears_mirror_assignments_and_keeps_history(client):
     before=client.get('/api/snapshot').json()
     report=before['report']

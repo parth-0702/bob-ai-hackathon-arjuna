@@ -17,6 +17,8 @@ class ScenarioEngine:
                 for domain in ('Assets','Cranes'):
                     for row in state[domain]:
                         if row['id']==target['asset_id'] or row['id'] in target['crane_ids']:
+                            if row['status']=='Maintenance':
+                                feasible=False;constraints.append(f'{row["id"]} is under maintenance; an operator must release it before allocation.');continue
                             row['health']=96;row['status']='Available';adjusted_risks.pop(row['id'],None)
                 effort+=2;resources+=['Maintenance crew'];tasks.append(f'Inspect and restore {target["asset_id"]} and dependent handling equipment at {berth_id}.');constraints.append('Repair is assumed completed before the modeled handling window; no measured repair duration or success probability is available.')
             if id in ('S2','S4'):

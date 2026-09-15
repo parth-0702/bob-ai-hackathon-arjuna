@@ -1203,6 +1203,35 @@ export default function App() {
                   ))}
                 </select>
               </label>
+              {register === "Cranes" && (
+                <div className="field">
+                  <button
+                    type="button"
+                    className={
+                      edit.status === "Maintenance" ? "btn danger" : "btn"
+                    }
+                    aria-pressed={edit.status === "Maintenance"}
+                    onClick={() =>
+                      setEdit({
+                        ...edit,
+                        status:
+                          edit.status === "Maintenance"
+                            ? "Available"
+                            : "Maintenance",
+                      })
+                    }
+                  >
+                    Under maintenance:{" "}
+                    {edit.status === "Maintenance" ? "On" : "Off"}
+                  </button>
+                  <p className="fine-print">
+                    Save to apply. While on, this crane cannot handle vessels or
+                    be reassigned. Existing vessel assignments will be cleared.
+                    Turning it off makes the crane available; old assignments
+                    are not restored.
+                  </p>
+                </div>
+              )}
               {register === "Vessels" && (
                 <>
                   {(["origin", "destination", "assignedCranes"] as const).map(

@@ -53,13 +53,27 @@ class Store:
             exists=db.execute('SELECT 1 FROM records WHERE domain=? AND id=?',(domain,record['id'])).fetchone()
             if create and exists:raise Conflict('That ID already exists.')
             if not create and not exists:raise KeyError(record['id'])
+            rows=[(r['domain'],r['id'],json.loads(r['body'])) for r in db.execute('SELECT * FROM records')]
+            unavailable={id for d,id,body in rows if d=='Cranes' and body.get('status')=='Maintenance'}
+            assignments={part for part in re.split(r'[,;\s·]+',record.get('assignedCranes','')) if part}
+            if domain=='Vessels' and assignments & unavailable:
+                raise Conflict('Cannot assign cranes under maintenance: '+', '.join(sorted(assignments & unavailable)))
             db.execute('INSERT OR REPLACE INTO records VALUES(?,?,?)',(domain,record['id'],json.dumps(record)))
             if domain in ('Assets','Cranes'):
                 other='Assets' if domain=='Cranes' else 'Cranes'
                 duplicate=db.execute('SELECT body FROM records WHERE domain=? AND id=?',(other,record['id'])).fetchone()
                 if duplicate:
                     merged={**json.loads(duplicate[0]),**record};db.execute('UPDATE records SET body=? WHERE domain=? AND id=?',(json.dumps(merged),other,record['id']))
-            db.execute("UPDATE meta SET value=? WHERE key='revision'",(str(revision+1),));self._audit(db,'record_created' if create else 'record_updated',{'domain':domain,'record':record,'revision':revision+1})
+            cleared=[]
+            if domain in ('Assets','Cranes') and record['status']=='Maintenance' and (domain=='Cranes' or any(d=='Cranes' and id==record['id'] for d,id,_ in rows)):
+                for d,id,body in rows:
+                    if id==record['id'] and d in ('Assets','Cranes'):continue
+                    assigned=[part for part in re.split(r'[,;\s·]+',body.get('assignedCranes','')) if part]
+                    if record['id'] in assigned:
+                        body['assignedCranes']=', '.join(part for part in assigned if part!=record['id'])
+                        db.execute('UPDATE records SET body=? WHERE domain=? AND id=?',(json.dumps(body),d,id))
+                        cleared.append({'domain':d,'id':id})
+            db.execute("UPDATE meta SET value=? WHERE key='revision'",(str(revision+1),));self._audit(db,'record_created' if create else 'record_updated',{'domain':domain,'record':record,'clearedAssignments':cleared,'revision':revision+1})
     def delete_record(self,domain,record_id,expected_revision,actor):
         if domain not in ('Cranes','Berths'):raise ValueError('Only cranes and berths can be deleted')
         with self.connect() as db:
