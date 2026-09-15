@@ -15,6 +15,40 @@ import {
   type Scenario,
   type Decision,
 } from "../services/portService";
+
+const explanationLabels: Record<string, string> = {
+  state: "Operational snapshot",
+  weather: "Weather conditions",
+  alert: "Detected issue",
+  risk: "Equipment risk",
+  dependency: "Affected equipment and vessels",
+  impact: "Congestion impact",
+  recommendation: "Recommended action",
+  scenarios: "Alternative responses",
+  authority: "Operator review",
+  limitations: "Limitations",
+};
+
+function ExplanationPoints({ data }: { data: Snapshot }) {
+  const { explanation, facts } = data.report;
+  const ids = [...new Set(explanation.fact_ids ?? Object.keys(facts))].filter(
+    (id) => typeof facts[id] === "string" && facts[id].trim(),
+  );
+  return (
+    <ul className="explanation-points">
+      {ids.length ? (
+        ids.map((id) => (
+          <li key={id}>
+            <strong>{explanationLabels[id] || id.replaceAll("_", " ")}</strong>
+            <span>{facts[id]}</span>
+          </li>
+        ))
+      ) : (
+        <li>{explanation.summary}</li>
+      )}
+    </ul>
+  );
+}
 export function AlertsPanel({
   data,
   solution,
@@ -379,7 +413,7 @@ export function ApprovalsPanel({
                 ? data.report.explanation.provider.toUpperCase()
                 : "DETERMINISTIC BACKEND"}
             </Badge>
-            <p>{data.report.explanation.summary}</p>
+            <ExplanationPoints data={data} />
             {data.report.explanation.error && (
               <p className="fine-print">{data.report.explanation.error}</p>
             )}
