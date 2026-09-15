@@ -98,6 +98,12 @@ export default function App() {
   const [filter, setFilter] = useState("All statuses");
   const [edit, setEdit] = useState<RecordItem | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  useEffect(() => {
+    setConfirmDelete(false);
+    setDeleteError("");
+  }, [edit?.id, isNew, page]);
   const [solution, setSolution] = useState("S1");
   const [toast, setToast] = useState("");
   const [decision, setDecision] = useState<
@@ -1068,6 +1074,7 @@ export default function App() {
             aria-labelledby="form-title"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (confirmDelete || saving) return;
               if (
                 !edit.name.trim() ||
                 !edit.type.trim() ||
@@ -1349,6 +1356,74 @@ export default function App() {
                 />
               </label>
             </div>
+            {!isNew && (register === "Cranes" || register === "Berths") && (
+              <div className="notice">
+                {confirmDelete ? (
+                  <>
+                    <p>
+                      Delete {edit.name} ({edit.id})?
+                    </p>
+                    <p>
+                      {register === "Cranes"
+                        ? "This removes the crane, its matching Assets entry and its crane assignments. Handling capacity will be recalculated."
+                        : "The berth must have no assigned vessels, cranes or assets. Reassign those records first."}{" "}
+                      Previous reports and approval history are retained.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={saving}
+                      onClick={() => {
+                        setConfirmDelete(false);
+                        setDeleteError("");
+                      }}
+                    >
+                      Keep record
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className="btn danger"
+                      disabled={saving}
+                      onClick={async () => {
+                        setSaving(true);
+                        setDeleteError("");
+                        try {
+                          await portService.deleteRecord(
+                            register,
+                            edit.id,
+                            data.revision,
+                          );
+                          setEdit(null);
+                          setSelected(null);
+                          setToast(`${edit.name} deleted`);
+                          try {
+                            await refresh();
+                          } catch {
+                            load();
+                          }
+                        } catch (e) {
+                          setDeleteError((e as Error).message);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      {saving ? "Deleting…" : "Confirm delete"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn danger"
+                    disabled={saving}
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    Delete {register === "Cranes" ? "crane" : "berth"}
+                  </button>
+                )}
+                {deleteError && <p role="alert">{deleteError}</p>}
+              </div>
+            )}
             <footer>
               <button
                 type="button"
@@ -1357,7 +1432,10 @@ export default function App() {
               >
                 Cancel
               </button>
-              <button className="btn primary" disabled={saving}>
+              <button
+                className="btn primary"
+                disabled={saving || confirmDelete}
+              >
                 {saving ? "Saving…" : "Save record"}
               </button>
             </footer>

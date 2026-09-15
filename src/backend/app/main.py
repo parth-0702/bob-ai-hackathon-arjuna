@@ -19,7 +19,7 @@ def create_app(database_path=None,model=None,weather=None,llm=None):
         app.state.pipeline=Pipeline(store,model or FailureRiskModel(),weather or WeatherService(store),llm or create_llm_service())
         yield
     app=FastAPI(title='PortSentinel Nexus API',version='0.1.0',lifespan=lifespan)
-    app.add_middleware(CORSMiddleware,allow_origins=['http://127.0.0.1:5173','http://localhost:5173'],allow_methods=['GET','POST','PUT'],allow_headers=['Content-Type','X-PortSentinel-Client','X-Operator-Token','If-Match'])
+    app.add_middleware(CORSMiddleware,allow_origins=['http://127.0.0.1:5173','http://localhost:5173'],allow_methods=['GET','POST','PUT','DELETE'],allow_headers=['Content-Type','X-PortSentinel-Client','X-Operator-Token','If-Match'])
     def pipeline(request:Request):return request.app.state.pipeline
     def operator(request:Request,x_portsentinel_client:str=Header(default=''),x_operator_token:str=Header(default='')):
         if x_portsentinel_client!='ui':raise HTTPException(403,'Explicit operator client header is required for changes')
@@ -95,6 +95,13 @@ def create_app(database_path=None,model=None,weather=None,llm=None):
     def update_record(domain:str,record_id:str,record:PortRecord,if_match:str|None=Header(default=None),p=Depends(pipeline),actor=Depends(operator)):
         if record.id!=record_id:raise ValueError('Record ID cannot be changed')
         return save_record(domain,record,False,if_match,p)
+    @app.delete('/api/{domain}/{record_id}')
+    def delete_record(domain:str,record_id:str,if_match:int|None=Header(default=None),p=Depends(pipeline),actor=Depends(operator)):
+        domain=domain_name(domain)
+        if domain not in ('Cranes','Berths'):raise HTTPException(405,'Only cranes and berths can be deleted')
+        if if_match is None:raise HTTPException(428,'If-Match state revision is required')
+        revision=p.store.delete_record(domain,record_id,if_match,actor)
+        return {'status':'deleted','revision':revision}
     return app
 
 app=create_app()

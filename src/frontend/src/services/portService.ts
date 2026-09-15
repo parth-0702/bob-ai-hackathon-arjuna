@@ -267,6 +267,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json();
 }
 export const portService = {
+  deleteRecord: (domain: "Cranes" | "Berths", id: string, revision: number) =>
+    request(`/${domain.toLowerCase()}/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { "If-Match": String(revision) },
+    }),
   decide: (
     report_id: string,
     scenario_id: string,

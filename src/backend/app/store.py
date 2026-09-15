@@ -1,7 +1,7 @@
 """SQLite transactions persist operational state, immutable analyses and decisions."""
 from contextlib import contextmanager
 from pathlib import Path
-import json,sqlite3
+import json,sqlite3,re
 from .schemas import utcnow
 from .simulation import seed_port
 
@@ -60,6 +60,39 @@ class Store:
                 if duplicate:
                     merged={**json.loads(duplicate[0]),**record};db.execute('UPDATE records SET body=? WHERE domain=? AND id=?',(json.dumps(merged),other,record['id']))
             db.execute("UPDATE meta SET value=? WHERE key='revision'",(str(revision+1),));self._audit(db,'record_created' if create else 'record_updated',{'domain':domain,'record':record,'revision':revision+1})
+    def delete_record(self,domain,record_id,expected_revision,actor):
+        if domain not in ('Cranes','Berths'):raise ValueError('Only cranes and berths can be deleted')
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            revision=int(db.execute("SELECT value FROM meta WHERE key='revision'").fetchone()[0])
+            if revision!=expected_revision:raise Conflict('Port state changed. Refresh before deleting.')
+            rows=[(r['domain'],r['id'],json.loads(r['body'])) for r in db.execute('SELECT * FROM records')]
+            record=next((body for d,id,body in rows if d==domain and id==record_id),None)
+            if record is None:raise KeyError(record_id)
+            removed=[{'domain':domain,'record':record}]
+            if domain=='Berths':
+                linked=[f'{d}: {id}' for d,id,body in rows if d in ('Assets','Cranes','Vessels') and body.get('location')==record_id]
+                if linked:raise Conflict('Reassign these records before deleting this berth: '+', '.join(linked))
+            else:
+                linked=[f'{d}: {id}' for d,id,body in rows if id!=record_id and body.get('supplyAsset')==record_id]
+                if linked:raise Conflict('Reassign the supply asset for these records first: '+', '.join(linked))
+                mirror=next((body for d,id,body in rows if d=='Assets' and id==record_id),None)
+                if mirror is not None:
+                    removed.append({'domain':'Assets','record':mirror})
+                    db.execute('DELETE FROM records WHERE domain=? AND id=?',('Assets',record_id))
+            updated=[]
+            if domain=='Cranes':
+                for d,id,body in rows:
+                    if id==record_id and d in ('Cranes','Assets'):continue
+                    assignments=[part for part in re.split(r'[,;\s·]+',body.get('assignedCranes','')) if part]
+                    if record_id in assignments:
+                        body['assignedCranes']=', '.join(part for part in assignments if part!=record_id)
+                        db.execute('UPDATE records SET body=? WHERE domain=? AND id=?',(json.dumps(body),d,id))
+                        updated.append({'domain':d,'id':id})
+            db.execute('DELETE FROM records WHERE domain=? AND id=?',(domain,record_id))
+            db.execute("UPDATE meta SET value=? WHERE key='revision'",(str(revision+1),))
+            self._audit(db,'record_deleted',{'removed':removed,'clearedAssignments':updated,'revision':revision+1,'actor':actor})
+            return revision+1
     def save_report(self,report):
         with self.connect() as db:
             db.execute('INSERT OR IGNORE INTO reports VALUES(?,?,?,?)',(report['id'],report['revision'],json.dumps(report),utcnow()))

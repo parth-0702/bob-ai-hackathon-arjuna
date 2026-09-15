@@ -23,6 +23,44 @@ def client(tmp_path,model):
 
 HEADERS={'X-PortSentinel-Client':'ui'}
 
+def test_delete_crane_clears_mirror_assignments_and_keeps_history(client):
+    before=client.get('/api/snapshot').json()
+    report=before['report']
+    decision={'report_id':report['id'],'scenario_id':report['recommended_id'],'status':'Approved','request_id':'delete-history-test'}
+    assert client.post('/api/approvals',json=decision,headers=HEADERS).status_code==200
+    url='/api/cranes/C07'
+    assert client.delete(url).status_code==403
+    assert client.delete(url,headers=HEADERS).status_code==428
+    assert client.delete(url,headers={**HEADERS,'If-Match':str(before['revision']-1)}).status_code==409
+    assert client.delete(url,headers={**HEADERS,'If-Match':str(before['revision'])}).status_code==200
+    after=client.get('/api/snapshot').json()
+    assert after['revision']==before['revision']+1
+    assert after['report']['id']!=report['id']
+    for domain in ('Assets','Cranes'):
+        assert not any(r['id']=='C07' for r in after['registers'][domain])
+    assert all('C07' not in r.get('assignedCranes','') for rows in after['registers'].values() for r in rows)
+    assert len(after['decisions'])==1
+    assert client.get('/api/recommendations/'+report['id']).json()['risks']==report['risks']
+    assert any(a['event']=='record_deleted' for a in after['audit'])
+    assert next(b for b in after['report']['congestion']['berths'] if b['id']=='B03')['capacity']==0
+
+def test_delete_berth_requires_no_dependents_and_persists(client):
+    before=client.get('/api/snapshot').json()
+    headers={**HEADERS,'If-Match':str(before['revision'])}
+    blocked=client.delete('/api/berths/B03',headers=headers)
+    assert blocked.status_code==409 and 'Reassign' in blocked.json()['detail']
+    assert client.get('/api/snapshot').json()['revision']==before['revision']
+    assert client.delete('/api/assets/P03',headers=headers).status_code==405
+    assert client.delete('/api/berths/missing',headers=headers).status_code==404
+    assert client.delete('/api/cranes/C09',headers=headers).status_code==200
+    headers['If-Match']=str(before['revision']+1)
+    assert client.delete('/api/berths/B04',headers=headers).status_code==200
+    from app.store import Store
+    records,_,revision,_=Store(client.app.state.store.path).state()
+    assert not any(b['id']=='B04' for b in records['Berths'])
+    assert revision==before['revision']+2
+    assert client.get('/api/snapshot').status_code==200
+
 def test_actual_artifact_inference_and_validation(model):
     assert model.metadata()['status']=='available'
     assert model.metadata()['compatibilityRecovery']
